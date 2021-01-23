@@ -16,3 +16,10 @@ With one set of inputs get pricing output for
 * If persistance is low a higher ratio of io activity is at play Spanner and Bigtable shine
 * If Single region is all that is required,  replicated Bigtable clusters offers power huge advantages if you are are willing to implement a node autoscaler.
 
+---
+
+## TODO
+* clean node driver
+* learn/fix repl calcs (bt)
+* tune node capacity counts for io on bt and spanner, should run at 100%
+* add deletes for ds
