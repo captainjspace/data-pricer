@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
+import math
 from flask import Flask, url_for, jsonify, render_template
-from flask_cors import CORS, cross_origin
 from bs4 import BeautifulSoup
 import requests
 from json2html import *
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ZXN0aW1hdG9yCg=='
-app.config['CORS_HEADERS'] = 'Content-Type'
-cors = CORS(app, resources={r"*" : {"origins": "*"}})
 
 
 # https://cloud.google.com/pubsub/pricing#example-subscription-with-retained-acknowledged-messages
@@ -145,45 +142,53 @@ def bigtable_storage_pricing(dtype=None, size=0, unit=None):
 def __def_ds_pricing():
     return ds_pricing()
 
-@app.route("/pricing/ds_pricing/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
-def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
-
-    data={}
+def get_input(reads=30000, writes=20000, storage=100, scale=0.1):
     inputs = {}
     inputs['reads']   = reads #30000
     inputs['writes']  = writes #20000
     inputs['storage'] = storage #100 #* (10**12)  #100 TB
     inputs['scale']   = scale #globals['scaling']
+    return inputs
 
+def scale_data(data,inputs):
     data['scaler'] = 1 + inputs['scale']
     data['reads'] = inputs['reads'] * data['scaler']
     data['writes'] = inputs['writes'] * data['scaler']
     data['storage']  = inputs['storage'] * data['scaler']
+    return data
+
+
+
+@app.route("/pricing/ds/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
+def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
+
+    data={}
+    inputs = get_input(reads,writes,storage,scale)
+    data=scale_data(data,inputs)
 
     data['location'] = 'nam5'
     data['storage_base_cost'] = .18
-    data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 10**3 # TB to GB
+    data['storage_cost'] = round(data['storage_base_cost'] * data['storage'] * 10**3,2) # TB to GB
 
     data['read_base_cost'] = .06
     data['write_base_cost'] = .18
     data['delete_base_cost'] = .02
-    data['io_unit'] = 100000.0
 
+    data['io_unit'] = 100000.0
     data['monthly_reads'] = data['reads'] * globals['seconds_to_month']
     data['monthly_writes'] = data['writes'] * globals['seconds_to_month']
 
-    data['read_cost'] = data['monthly_reads'] / data['io_unit'] * data['read_base_cost']
-    data['write_cost'] = data['monthly_writes']  / data['io_unit'] * data['write_base_cost']
-
-    data['io_cost'] = data['read_cost'] + data['write_cost']
-    data['total_cost'] = data['io_cost'] + data['storage_cost']
+    data['read_cost'] = round(data['monthly_reads'] / data['io_unit'] * data['read_base_cost'],2)
+    data['write_cost'] = round(data['monthly_writes']  / data['io_unit'] * data['write_base_cost'],2)
+    data['io_cost'] = round(data['read_cost'] + data['write_cost'],2)
+    data['total_cost'] = round(data['io_cost'] + data['storage_cost'],2)
     
+    {key: '${:,.2f}'.format(value) for key, value in data.items() if 'cost' in key}
     output= {'inputs': inputs, 'globals': globals,'data': data}
     return output    
 
 
 @app.route("/pricing/leanplum/json", methods=['GET','OPTIONS'])
-#@cross_origin(origin='*',headers=['Content-Type','Client-ID'])
 def leanplum_json():
     o1 = ds_pricing()['data']
     o2 = bt_pricing()['data']
@@ -192,7 +197,6 @@ def leanplum_json():
     return output 
 
 @app.route("/pricing/leanplum/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>", methods=['GET','OPTIONS'])
-#@cross_origin(origin='*',headers=['Content-Type','Client-ID'])
 def leanplum_json_params(reads=30000, writes=20000, storage=100, scale=0.1):
     o1 = ds_pricing(reads,writes,storage,scale)['data']
     o2 = bt_pricing(reads,writes,storage,scale)['data']
@@ -225,46 +229,36 @@ def leanplum_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
 def __def_bt_pricing():
     return bt_pricing()
 
-@app.route("/pricing/bt_nodes/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
+@app.route("/pricing/bt/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
+     
     data={}
-
-    ##refactor
-    inputs = {}
-    inputs['reads']   = reads #30000
-    inputs['writes']  = writes #20000
-    inputs['storage'] = storage #100 #* (10**12)  #100 TB
-    inputs['scale']   = scale #globals['scaling']
-
-   
-    data['scaler'] = 1 + inputs['scale']
-    data['reads'] = inputs['reads'] * data['scaler']
-    data['writes'] = inputs['writes'] * data['scaler']
-    data['storage']  = inputs['storage'] * data['scaler']
-    ##refactor
+    inputs = get_input(reads,writes,storage,scale)
+    data=scale_data(data,inputs)
     
 
     #multi region - 10K R/s, 10 W/s
-    data['read_nodes_min']  = data['reads'] / 10000.0
-    data['write_nodes_min'] = data['writes'] / 10000.0
-    data['storage_nodes_min'] = data['storage'] / 2.5
+    data['read_nodes_min']  = math.ceil(data['reads'] / 10000.0)
+    data['write_nodes_min'] = math.ceil(data['writes'] / 10000.0)
+    data['storage_nodes_min'] = math.ceil(data['storage'] / 2.5)
 
     data['nodes'] = int(max(data['read_nodes_min'],data['write_nodes_min'],data['storage_nodes_min']))
     data['nodes_read_capacity'] = data['nodes'] * 10000
     data['nodes_write_capacity'] = data['nodes'] * 10000
 
     data['location'] = 'us-central1'
-    data['storage_base_cost'] = .17
-    data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 10**3 # TB to GB
+    data['storage_base_cost'] = 0.17
+    data['storage_cost'] = round(data['storage_base_cost'] * data['storage'] * 10**3,2) # TB to GB
 
     data['node_base_cost'] = 0.65
-    data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
+    data['node_cost'] = round(data['node_base_cost'] * data['nodes'] * 24 * 30,2)
 
-    data['total_cost_single_region'] = data['storage_cost']  + data['node_cost'] 
+    data['total_cost_single_region'] = round(data['storage_cost']  + data['node_cost'],2)
 
-    data['replication_cost'] = data['writes'] / 1024 * 0.11
+    data['replication_cost'] = round(data['writes'] / 1024 * 0.11,2)
     data['total_cost'] = data['total_cost_single_region'] * 2 + data['replication_cost']
 
+    {key: '${:,.2f}'.format(value) for key, value in data.items() if 'cost' in key}
     output= {'inputs': inputs, 'globals':globals,'data': data}
     return output    
 
@@ -290,38 +284,35 @@ def __def_spanner_pricing():
 
 @app.route("/pricing/spanner/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
+
     data={}
-
-    ##refactor
-    inputs = {}
-    inputs['reads']   = reads #30000
-    inputs['writes']  = writes #20000
-    inputs['storage'] = storage #100 #* (10**12)  #100 TB
-    inputs['scale']   = scale #globals['scaling']
-
-   
-    data['scaler'] = 1 + inputs['scale']
-    data['reads'] = inputs['reads'] * data['scaler']
-    data['writes'] = inputs['writes'] * data['scaler']
-    data['storage']  = inputs['storage'] * data['scaler']
-    ##refactor
+    inputs = get_input(reads,writes,storage,scale)
+    data=scale_data(data,inputs)
     
-    data['read_nodes_min']  = data['reads'] / 7000.0
-    data['write_nodes_min'] = data['writes']   /1800.0
-    data['storage_nodes_min'] = data['storage'] / 2.0
+    data['read_nodes_min']  = math.ceil(data['reads'] / 7000.0)
+    data['write_nodes_min'] = math.ceil(data['writes']   /1800.0)
+    data['storage_nodes_min'] = math.ceil(data['storage'] / 2.0)
+    
 
-    data['nodes'] = int(max(data['read_nodes_min'],data['write_nodes_min'],data['storage_nodes_min']))
-    data['nodes_read_capacity'] = data['nodes'] * 7000
-    data['nodes_write_capacity'] = data['nodes'] * 1800
+    data['nodes'] = int(max(data['read_nodes_min'],data['write_nodes_min'],data['storage_nodes_min'])) 
+    data['nodes_read_capacity'] = '{:,} / sec'.format(data['nodes'] * 7000)
+    data['nodes_write_capacity'] = '{:,} / sec'.format(data['nodes'] * 1800)
+   
+    #cost = {k: v for k, v in data.items() if 'cost' in k}
+    app.logger.info('test')
+    #data['CostNode'] = sorted(cost, key=cost.get, reverse=True)[:3]
 
     data['location'] = 'nam3'
-    data['storage_base_cost'] = .50
+    data['storage_base_cost'] = 0.50
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 10**3 # TB to GB
 
     data['node_base_cost'] = 3.0
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
+    data['total_cost'] =  data['storage_cost']  + data['node_cost']
 
-    data['total_cost'] = data['storage_cost']  + data['node_cost'] 
+    
+    {key: '${:,.2f}'.format(value) for key, value in data.items() if 'cost' in key}
+
     output= {'globals':globals,'data': data}
     return output
 
