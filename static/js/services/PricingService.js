@@ -3,8 +3,8 @@
  */
 class PricingService {
   constructor() {
-    //this._baseUrl = "http://localhost/pricing/leanplum/json/";
-    this._baseUrl = "/pricing/leanplum/json/";
+    //this._baseUrl = "http://localhost/pricing/lp/json/";
+    this._baseUrl = "/pricing/lp/json/";
     this._headers = {
       accept: "*/*",
       clientId: "w3moe641p9cucblko66t42khea6rxk",

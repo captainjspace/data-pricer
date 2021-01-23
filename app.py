@@ -188,16 +188,16 @@ def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
     return output    
 
 
-@app.route("/pricing/leanplum/json", methods=['GET','OPTIONS'])
-def leanplum_json():
+@app.route("/pricing/lp/json", methods=['GET','OPTIONS'])
+def lp_json():
     o1 = ds_pricing()['data']
     o2 = bt_pricing()['data']
     o3 = spanner_pricing()['data']
     output = { 'globals' :globals , 'datastore': o1, 'bigtable': o2, 'spanner' :o3} 
     return output 
 
-@app.route("/pricing/leanplum/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>", methods=['GET','OPTIONS'])
-def leanplum_json_params(reads=30000, writes=20000, storage=100, scale=0.1):
+@app.route("/pricing/lp/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>", methods=['GET','OPTIONS'])
+def lp_json_params(reads=30000, writes=20000, storage=100, scale=0.1):
     o1 = ds_pricing(reads,writes,storage,scale)['data']
     o2 = bt_pricing(reads,writes,storage,scale)['data']
     o3 = spanner_pricing(reads,writes,storage,scale)['data']
@@ -205,8 +205,8 @@ def leanplum_json_params(reads=30000, writes=20000, storage=100, scale=0.1):
     return output
 
 
-@app.route("/pricing/leanplum/html")
-def leanplum_html():
+@app.route("/pricing/lp/html")
+def lp_html():
     o1 = json2html.convert(ds_pricing()['data'])
     o2 = json2html.convert(bt_pricing()['data'])
     o3 = json2html.convert(spanner_pricing()['data'])
@@ -216,8 +216,8 @@ def leanplum_html():
     return o1 + o2 + o3
 
 
-@app.route("/pricing/leanplum/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
-def leanplum_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
+@app.route("/pricing/lp/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
+def lp_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
     o1 = json2html.convert(ds_pricing(reads,writes,storage,scale)['data'])
     o2 = json2html.convert(bt_pricing(reads,writes,storage,scale)['data'])
     o3 = json2html.convert(spanner_pricing(reads,writes,storage,scale)['data'])
