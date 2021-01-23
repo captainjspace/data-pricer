@@ -57,6 +57,9 @@ html, body {
     flex-flow: row nowrap;
     justify-content: space-between;
   }*/
+
+  /* table formats */
+
   table.grid {
     margin: 0 0 0 0;
     border-collapse: collapse;
@@ -69,7 +72,18 @@ html, body {
     padding: 8px;
   }
   
-  tr:nth-child(even) {background-color: #f2f2f2;}
+  tr:nth-child(even) {
+    background-color: #f2f2f2;
+  }
+
+  table tr:hover {
+    background-color: yellow;
+  } 
+
+  table td:hover {
+    transform: scale(1.1);
+    color:tomato;
+  }
 
   tr#total_cost {
     font-size: 120%;
@@ -87,155 +101,7 @@ html, body {
     flex: 0 0 400px;
   }
   
-  div#navButtons {
-    flex: 0 1 auto;
-    text-align: right;
-    width: 50%;
-    padding: 10px 5px 5px 10px;
-    z-index:10000;
-  }
-  
-  span.small {
-    font-size: 7pt;
-    font-style: italic;
-  }
-  
-  
   /*
   Item Style
   */
-  
-  div.item {
-    padding-left: 10px;
-    display: flex;
-    height: 114px;
-  }
-  
-  div.img-container-spacer {
-    width: 145px !important;
-    height: 114px !important;
-    flex-shrink: 0;
-  }
-  
-  div.img-container {
-    width:125px;
-    height:94px;
-    /* padding-right: 20px; */
-    margin: 10px 10px 10px 10px;
-    border: 1px solid black;
-    flex-shrink: 0;
-  }
-  
-  div.txt-container {
-    width: 500px;
-    padding-right: 5pt;
-    margin: 10px 10px 10px 10px;
-    border-bottom: 2px solid white;
-    overflow-y: scroll;
-  }
-  
-  div.streamDisplayName {
-    font-size: 14pt;
-    font-weight: bold;
-  }
-  
-  div.txt-container:hover div.raw {
-    visibility: visible;
-    opacity: 1;
-  }
-  
-  div.raw {
-    visibility:hidden;
-    opacity:0;
-    -webkit-transition: all 2s ease;
-    -moz-transition: all 2s ease;
-    -o-transition: all 2s ease;
-    -ms-transition: all 2s ease;
-    transition: all 2s ease;
-    position: fixed;
-    top: 140px;
-    left: 820px;
-    width: 300px;
-    height:450px;
-    overflow:scroll;
-  }
-  div.raw:hover {
-    height:558px;
-    width:600px;
-  }
-  
-  span.field-name {
-    font-style: italic;
-  }
-  
-  /* item image classes & animations */
-  @-webkit-keyframes moveImage {
-    from {
-      margin-top:  0vh;
-      margin-left: 0vw;
-    }
-    50% {
-      margin-top:  -20vh; /* this value gets overwritten in javascript */
-      margin-left: 65vw;
-      transform: scale(.1);
-    }
-    to {
-      margin-top:  0vh;
-      margin-left: 0vw;
-    }
-  }
-  
-  @-webkit-keyframes flipReplaceX
-  {
-      to {
-        transform: rotateX(360deg);
-      }
-  }
-  @-webkit-keyframes flipReplaceY
-  {
-      to {
-        transform: rotateY(360deg);
-      }
-  }
-  
-  
-  
-  img.stream-image {
-    position:absolute;
-    transition: all 0.7s ease;
-    width: inherit;
-    height: inherit;
-  }
-  img.stream-image.animate {
-      animation-name: moveImage;
-      animation-duration: 2s;
-      animation-timing-function: ease;
-      animation-iteration-count: 1;
-      animation-direction:alternate;
-      animation-delay: 0;
-      animation-play-state:running;
-      animation-fill-mode: both;
-  }
-  img.stream-image.replaceX {
-      animation-name: flipReplaceX;
-      animation-duration: 1s;
-      animation-timing-function: ease;
-      animation-iteration-count: 1;
-      animation-direction:alternate;
-      animation-delay: 0;
-      animation-play-state:running;
-      animation-fill-mode: both;
-  }
-  img.stream-image.replaceY {
-      animation-name: flipReplaceY;
-      animation-duration: 1s;
-      animation-timing-function: ease;
-      animation-iteration-count: 1;
-      animation-direction:alternate;
-      animation-delay: 0;
-      animation-play-state:running;
-      animation-fill-mode: both;
-  }
-  img.stream-image:hover {
-    transform: scale(2, 2);
-  }
+ 
