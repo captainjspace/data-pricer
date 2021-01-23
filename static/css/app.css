@@ -82,7 +82,7 @@ html, body {
 
   table td:hover {
     transform: scale(1.1);
-    color:tomato;
+    /*color:tomato;*/
   }
 
   tr#total_cost {
