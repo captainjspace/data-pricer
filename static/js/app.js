@@ -12,7 +12,7 @@ const mastHTML = `
       <div id="inputBox">
         <div class="form-field">
           <div class="form-field__control">
-            <input type="text" id="reads" class="form-field__input" placeholder=" "  autofocus />
+            <input type="text" id="reads" class="form-field__input" placeholder="30000"  autofocus />
             <label for="reads" class="form-field__label">Reads per Second</label>
             <div class="form-field__bar"></div>
           </div>
@@ -41,6 +41,7 @@ const mastHTML = `
   
         <input type="button" value="Get Estimates"
                onClick="app.getEstimates()")>
+        
       </div>
       <div id="dataport">
       </div>
@@ -57,7 +58,7 @@ class Inputs {
         this._reads = 30000;
         this._writes = 20000;
         this._storage = 100
-        this._scale = 0.1;  
+        this._scale = 0.0;  
       }
   
       get reads() {
@@ -91,7 +92,7 @@ class Inputs {
         this.reads = document.getElementById('reads').value || 30000
         this.writes = document.getElementById('writes').value || 20000
         this.storage = document.getElementById('storage').value || 100
-        this.scale = parseFloat(document.getElementById('scale').value) || 0.1
+        this.scale = parseFloat(document.getElementById('scale').value || 0).toFixed(1) 
 
       }
 

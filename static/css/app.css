@@ -70,7 +70,17 @@ html, body {
   }
   
   tr:nth-child(even) {background-color: #f2f2f2;}
-  
+
+  tr#total_cost {
+    font-size: 120%;
+    font-style: italic; 
+    font-weight: bold;
+  }
+
+  tr#Measure {
+    font: bold large serif
+  }
+
   div#total {
     width: 50%;
     padding: 10px 0px 5px 10px;

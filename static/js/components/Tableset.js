@@ -5,6 +5,7 @@
 class Tableset {
     constructor(datasetArray) {
       this._datasets = datasetArray;
+      this._cleanvalues = undefined;
     }
   
     get datasets() {
@@ -13,8 +14,15 @@ class Tableset {
     set datasets(datasets) {
       this._datasets = datasets;
     }
+    
+    get cleanvalues() {
+      return this._cleanvalues;
+    }
 
-  
+    set cleanvalues(cleanvalues) {
+      this._cleanvalues = cleanvalues;
+    }
+    
     assembleKeys() {
       let setkeys = ['Measure']; //Object.keys(this.datasets);
       let setvalues = [];
@@ -23,7 +31,7 @@ class Tableset {
         setkeys.push(key);
         Object.entries(value).forEach(( [ikey, value]) => setvalues.push(ikey));
       })
-      let cleanvalues = new Set(setvalues)
+      this.cleanvalues = new Set(setvalues)
       //console.log(setkeys)
       //console.log(cleanvalues)
 
@@ -31,8 +39,8 @@ class Tableset {
       grid.push(setkeys);
       //console.log(grid);
       //setkeys.shift();
-
-      cleanvalues.forEach(k => {
+      
+      this.cleanvalues.forEach(k => {
         //console.log(k);
         let row = [];
         row.push(k);
@@ -44,14 +52,18 @@ class Tableset {
         })
         grid.push(row)
       });
-      console.log(grid);
+      //console.log(grid);
       return grid;
     }
-
+    properCase(s) {
+      return (!this.cleanvalues.has(s)) ? s : s.replace(/_/g, ' ').replace(/(?: |\b)(\w)/g, function(s) { return s.toUpperCase()});
+    }
     toDiv() {
+        
         let grid = this.assembleKeys();
-        let gridHTML = `<table class="grid">${grid.reduce((c, o) => c += `<tr>${o.reduce((c, d) => (c += `<td>${d}</td>`), '')}</tr>`, '')}</table>`
+        let gridHTML = `<table class="grid">${grid.reduce((c, o) => c += `<tr id="${o[0]}">${o.reduce((c, d) => (c += `<td>${this.properCase(d)}</td>`), '')}</tr>`, '')}</table>`
 
+        /*
         let tablesHTML = "";
         let counter = 1;
         Object.entries(this.datasets).forEach(([key, value]) => {
@@ -59,6 +71,7 @@ class Tableset {
           Object.entries(value).forEach(([ikey, value]) => tablesHTML+=(`<tr><td>${key}</td><td>${ikey}</td><td>${value}</td></tr>`));
           tablesHTML+='</table>'
         })
+        */
         let pageContainerHTML = `
           <content>
           <div class="container">
