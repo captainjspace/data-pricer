@@ -19,21 +19,21 @@ const mastHTML = `
         </div>
         <div class="form-field">
           <div class="form-field__control">
-            <input type="text" id="writes" class="form-field__input" placeholder=" "   />
+            <input type="text" id="writes" class="form-field__input" placeholder="20000"   />
             <label for="writes" class="form-field__label">Writes per Second</label>
             <div class="form-field__bar"></div>
           </div>
         </div>
         <div class="form-field">
           <div class="form-field__control">
-            <input type="text" id="storage" class="form-field__input" placeholder=" "  />
+            <input type="text" id="storage" class="form-field__input" placeholder="100"  />
             <label for="storage" class="form-field__label">Storage (TB)</label>
             <div class="form-field__bar"></div>
           </div>
         </div>
         <div class="form-field">
           <div class="form-field__control">
-            <input type="text" id="scale" class="form-field__input" placeholder=" "  />
+            <input type="text" id="scale" class="form-field__input" placeholder="0.0"  />
             <label for="scale" class="form-field__label">Growth Scale (0.0-1.0)</label>
             <div class="form-field__bar"></div>
           </div>
