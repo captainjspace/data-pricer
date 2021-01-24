@@ -33,11 +33,11 @@ app = Flask(__name__)
 #                                       GLOBAL                                       #
 ######################################################################################
 
-#*************************************************************************************
+#**************************************************************************************
 # *              1/2 X 605 GIB X 7 DAYS = 2118 GIB-DAYS OF STORAGE USED,              *
 # * FOR WHICH THE CHARGE IS 2118 GIB-DAYS X (1/30 MONTHS/DAY) X $0.27/GIB-MONTH = $19 *
 # *                                    IN A 30-DAY                                    *
-# *************************************************************************************/
+# *************************************************************************************
 
 globals={
   'read-from-api-complete': False,
@@ -152,8 +152,8 @@ def get_input(reads=30000, writes=20000, storage=100, scale=0.0):
 
 def scale_data(data,inputs):
     data['scaler'] = 1 + inputs['scale']
-    data['reads'] = inputs['reads'] * data['scaler']
-    data['writes'] = inputs['writes'] * data['scaler']
+    data['reads'] = math.ceil(inputs['reads'] * data['scaler'])
+    data['writes'] = math.ceil(inputs['writes'] * data['scaler'])
     data['storage']  = math.ceil(inputs['storage'] * data['scaler'])
     return data
 
@@ -162,9 +162,11 @@ def format_data(data):
     can set up a config grid -- naming driving formatting
     """
     cost     = { key:'${:,.2f}'.format(value) for key, value in data.items() if 'cost' in key }
-    capacity = { key:'{:,} / sec'.format(value) for key, value in data.items() if 'capacity' in key}
+    capacity = { key:'{:,} / sec'.format(value) for key, value in data.items() if key in ['nodes_read_capacity','nodes_write_capacity']}
     numbers  = { key:'{:,.0f}'.format(value) for key, value in data.items() if 'monthly' in key }
     data['storage']= '{:,} (TB)'.format(data['storage'])
+    if 'nodes_storage_capacity' in data:
+        data['nodes_storage_capacity']= '{:,} (TB)'.format(data['nodes_storage_capacity'])
     data.update(cost)
     data.update(capacity)
     data.update(numbers)
@@ -178,8 +180,9 @@ def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
     data=scale_data(data,inputs)
 
     data['location'] = 'nam5'
+    data['type'] = 'Global Managed ACID'
     data['storage_base_cost'] = 0.18
-    data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 10**3 # TB to GB
+    data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
 
     data['read_base_cost'] = 0.06
     data['write_base_cost'] = 0.18
@@ -248,34 +251,41 @@ def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
         's': 2.5, 
         'rec_size': 1024, #record size in kb
         'rec_pct_chg': 0.001,
-        'replication_base_cost': 0.11,
+        'replication_base_cost': [0.12,0.11,0.08],
         'storage_base_cost' : {'ssd' : 0.17 },
         'node_base_cost': 0.65,
-        'location': 'us-central1'
+        'location': 'us-central1,europe-west1'
         }
     data={}
     inputs = get_input(reads,writes,storage,scale)
     data=scale_data(data,inputs)
+    data['type'] = 'M-S Repl, Eventual'
+    data['clusters'] = 4
     calc_nodes(data,config)
 
     # set config to display 
     data['location'] = config['location']
     data['storage_base_cost'] = config['storage_base_cost']['ssd']            #0.17 #ssd
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
-    data['replicated_storage_cost'] = data['storage_cost'] * 2                # 2x it
+    data['replicated_storage_cost'] = data['storage_cost'] * (data['clusters']  - 1 )          
 
     data['node_base_cost'] = config['node_base_cost']   #0.65 #per/hr
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
     data['total_cost_single_region'] = data['storage_cost']  + data['node_cost']
 
     #replication / network 
-    data['replication_base_cost'] = config['replication_base_cost'] 
-    
+    # need dual regional clusters 
     data['replicated_data_size'] = math.ceil(data['monthly_writes'] * config['rec_size'] / 1024 / 1024) #GBs
-    data['replication_cost'] = data['replicated_data_size'] * config['rec_pct_chg'] * data['replication_base_cost'] 
+    app.logger.info(data['replicated_data_size']/1024.0)
+
+    i = 1 if data['replicated_data_size']/1024.0 < 10 else 2 
+    
+    data['replication_base_cost'] = config['replication_base_cost'][i]
+    
+    data['replication_network_cost'] = data['replicated_data_size'] * config['rec_pct_chg'] * data['replication_base_cost']
 
     # cluster+storage x2 + replicated changes
-    data['total_cost'] = data['total_cost_single_region'] * 2 + data['replication_cost']
+    data['total_cost'] = data['total_cost_single_region'] * data['clusters'] + data['replication_network_cost']
     format_data(data)
     output= {'inputs': inputs, 'globals':globals,'data': data, 'config': config}
     return output    
@@ -296,24 +306,27 @@ def task_pricing():
     output= {'globals':globals,'data': data}
     return output
 
-
 def calc_nodes(data,c):
-    data['read_nodes_min']  = math.ceil(data['reads'] / c['r'])
-    data['write_nodes_min'] = math.ceil(data['writes']   /c['w'])
-    data['storage_nodes_min'] = math.ceil(data['storage'] / c['s'])
-
+    # need to buffer nodes to not run out of IO on spikes or storage
+    
+    data['read_nodes_min']  = math.ceil(data['reads']  / c['r']) 
+    data['write_nodes_min'] = math.ceil(data['writes'] / c['w'])
+    data['storage_nodes_min'] = math.ceil(data['storage'] / c['s'] )
     n={k: v for k, v in data.items() if 'nodes_min' in k}
     (mk,mv)=sorted(n.items(),key=lambda x: (x[1]),reverse=True)[0]
-    data['nodes'] = int(mv) 
     data['node_driver']=mk
+    # 30% capacity or reads/writes but only 10% capacity for storage
+    nf = 1.1 if 'storage' in mk else 1.3 
+    data['nodes'] = int(mv * nf) 
+    data['node_driver']=mk
+
     data['nodes_read_capacity'] = int(data['nodes'] * c['r'])
     data['nodes_write_capacity'] = int(data['nodes'] * c['w'])
+    data['nodes_storage_capacity'] = int(data['nodes'] * c['s'])
 
     data['monthly_reads'] = data['reads'] * globals['seconds_to_month']
     data['monthly_writes'] = data['writes'] * globals['seconds_to_month']
    
-
-
 @app.route("/pricing/spanner/")
 def __def_spanner_pricing():
     return spanner_pricing()
@@ -321,13 +334,18 @@ def __def_spanner_pricing():
 @app.route("/pricing/spanner/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
 
-    config = { 'r': 7000.0, 'w': 1800.0, 's': 2.0}
+    # single-regions (3 zones)
+    #config = { 'r': 10000.0, 'w': 2000.0, 's': 2.0}
+    # multi-regions
+    config = { 'multi': {'r': 7000.0, 'w': 1800.0, 's': 2.0},
+               'single':{ 'r': 10000.0, 'w': 2000.0, 's': 2.0}
+            }
 
     data={}
     inputs = get_input(reads,writes,storage,scale)
     data=scale_data(data,inputs)
-    
-    calc_nodes(data, config)
+    data['type'] = 'Multi Region'
+    calc_nodes(data, config['multi'])
     
     
     #cost = {k: v for k, v in data.items() if 'cost' in k}
@@ -341,7 +359,7 @@ def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
     data['node_base_cost'] = 3.0
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
     data['total_cost'] =  data['storage_cost']  + data['node_cost']
-    
+    data['clusters'] = 1
     format_data(data)
     output= {'globals':globals,'data': data}
     return output
