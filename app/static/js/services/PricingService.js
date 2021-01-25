@@ -6,7 +6,7 @@ class PricingService {
     //this._baseUrl = "http://localhost/pricing/lp/json/";
     this._baseUrl = "/pricing/lp/json/";
     this._headers = {
-      accept: "*/*",
+      accept: "application/json",
       clientId: "w3moe641p9cucblko66t42khea6rxk",
     };
     this._data = {};

@@ -32,16 +32,11 @@ class Tableset {
         Object.entries(value).forEach(( [ikey, value]) => setvalues.push(ikey));
       })
       this.cleanvalues = new Set(setvalues)
-      //console.log(setkeys)
-      //console.log(cleanvalues)
-
+  
       let grid = [];
       grid.push(setkeys);
-      //console.log(grid);
-      //setkeys.shift();
-      
+
       this.cleanvalues.forEach(k => {
-        //console.log(k);
         let row = [];
         row.push(k);
         setkeys.forEach(sys => {
@@ -52,38 +47,29 @@ class Tableset {
         })
         grid.push(row)
       });
-      //console.log(grid);
       return grid;
     }
     properCase(s) {
       return (!this.cleanvalues.has(s)) ? s : s.replace(/_/g, ' ').replace(/(?: |\b)(\w)/g, function(s) { return s.toUpperCase()});
     }
-    toDiv() {
+    renderView() {
         
         let grid = this.assembleKeys();
         let gridHTML = `<table class="grid">${grid.reduce((c, o) => c += `<tr id="${o[0]}">${o.reduce((c, d) => (c += `<td>${this.properCase(d)}</td>`), '')}</tr>`, '')}</table>`
 
-        /*
-        let tablesHTML = "";
-        let counter = 1;
-        Object.entries(this.datasets).forEach(([key, value]) => {
-          tablesHTML+=`<table class="tableSet" id="${key}">`
-          Object.entries(value).forEach(([ikey, value]) => tablesHTML+=(`<tr><td>${key}</td><td>${ikey}</td><td>${value}</td></tr>`));
-          tablesHTML+='</table>'
-        })
-        */
+    
+        
+        
         let pageContainerHTML = `
           <content>
-          <div class="container">
-            <div class="tables">
-            <div id="itemDisplay">
-               ${gridHTML}
-             
-               
-      
+            <div class="container">
+              <div class="tables">
+                <div id="itemDisplay">
+                  ${gridHTML}
+                </div>
+              </div>
             </div>
-          </div>
-        </content>
+          </content>
         `;
         return pageContainerHTML;
       }

@@ -1,0 +1,11 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricer
+spec:
+  template:
+    spec:
+      containers:
+      - name: pricer
+        image: kuberjosh/public:pricer
+        imagePullPolicy: Always

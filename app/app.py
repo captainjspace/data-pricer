@@ -4,40 +4,29 @@ from flask import Flask, url_for, jsonify, render_template
 from json2html import *
 
 #aspirational - use pricing api
-import requests
-from bs4 import BeautifulSoup
+#import requests
+#from bs4 import BeautifulSoup
+
+#logger
+from logging.config import dictConfig
+dictConfig({
+    'version': 1,
+    'formatters': {'default': {
+        'format': '[%(asctime)s] %(levelname)s : %(module)s: %(message)s',
+    }},
+    'handlers': {'wsgi': {
+        'class': 'logging.StreamHandler',
+        'stream': 'ext://flask.logging.wsgi_errors_stream',
+        'formatter': 'default'
+    }},
+    'root': {
+        'level': 'INFO',
+        'handlers': ['wsgi']
+    }
+})
 
 app = Flask(__name__)
 
-
-# https://cloud.google.com/pubsub/pricing#example-subscription-with-retained-acknowledged-messages
-# https://cloud.google.com/skus?currency=USD&filter=pub#sku-pubsub
-# https://en.wikipedia.org/wiki/Tebibyte
-# https://cloud.google.com/pubsub/docs/reference/rest/v1/Snapshot#:~:text=Its%20exact%20lifetime%20is%20determined,unacked%20message%20in%20the%20subscription)%20.
-
-
-
-######################################################################################
-#                               MESSAGE DELIVERY BASIC                               #
-#                                   027D-B6C7-CCA2                                   #
-# 0.00 USD (FREE) PER TEBIBYTE, FOR 0 TO 0.009765625 TEBIBYTE, PER MONTH PER ACCOUNT #
-# 40.00 USD PER TEBIBYTE, FOR 0.009765625 TEBIBYTE AND ABOVE, PER MONTH PER ACCOUNT  #
-#                                       GLOBAL                                       #
-#                             SNAPSHOTS MESSAGE BACKLOG                              #
-#                                   EAF4-71D0-17E0                                   #
-#                            0.27 USD PER GIBIBYTE MONTH                             #
-#                                       GLOBAL                                       #
-#                    SUBSCRIPTIONS RETAINED ACKNOWLEDGED MESSAGES                    #
-#                                   3C0B-A83B-E6EE                                   #
-#                            0.27 USD PER GIBIBYTE MONTH                             #
-#                                       GLOBAL                                       #
-######################################################################################
-
-#**************************************************************************************
-# *              1/2 X 605 GIB X 7 DAYS = 2118 GIB-DAYS OF STORAGE USED,              *
-# * FOR WHICH THE CHARGE IS 2118 GIB-DAYS X (1/30 MONTHS/DAY) X $0.27/GIB-MONTH = $19 *
-# *                                    IN A 30-DAY                                    *
-# *************************************************************************************
 
 globals={
   'read-from-api-complete': False,
@@ -72,76 +61,11 @@ units = {
     'B': 1/2**30
 }
 
-@app.route("/pricing/datastore")
-def datastore_pricing():
-    data={}
-    
-    d = task_pricing()
-    m_count = d['data']['daily_tasks'] *  30
-
-    data['reads']= (d['data']['daily_tasks'] - globals['datastore']['read-quota']) * 30 
-    data['writes']= (d['data']['daily_tasks'] - globals['datastore']['write-quota']) * 30 
-    data['deletes']= (d['data']['daily_tasks'] - globals['datastore']['delete-quota']) * 30 
-    data['stored_kb']= (( d['data']['daily_tasks'] * \
-        d['data']['task_size_kb'] ) - globals['datastore']['storage-quota'] ) *  3/4.0
-    
-    data['stored_gb']=data['stored_kb'] / 1024 / 1024.0
-
-    data['DataStore reads'] = data['reads']/100000 * globals['datastore']['reads'] 
-    data['DataStore writes'] = data['writes']/100000 * globals['datastore']['writes']
-    data['DataStore deletes'] = data['deletes']/100000  * globals['datastore']['deletes']
-    data['DataStore storage'] = data['stored_gb'] * globals['datastore']['storage']
-    data['Datastore fees'] = data['DataStore reads'] + data['DataStore writes'] + \
-                             data['DataStore deletes'] + data['DataStore storage']
-
-    output = { 'data': data, 'globals': globals}
-    return output
-    
-@app.route('/pricing/estimate/<id>')
-def get_static(id=None):
-    base_url='https://cloud.google.com/products/calculator/#id='
-    get_url=base_url+id
-    print(get_url)
-
-    # headers = {
-    # 'Access-Control-Allow-Origin': '*',
-    # 'Access-Control-Allow-Methods': 'GET',gcloud iam service-accounts keys create  --iam-account my-iam-account@somedomain.com key.json
-    # 'Access-Control-Allow-Headers': 'Content-Type',
-    # 'Access-Control-Max-Age': '3600',
-    # 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0'
-    # }
-    req = requests.get(get_url)
-    soup = BeautifulSoup(req.content, 'html.parser')
-    return soup.prettify()
-    #soup.
-    #return ""
-
-@app.route('/pricing/bigtable_storage/<dtype>/<size>/<unit>')
-def bigtable_storage_pricing(dtype=None, size=0, unit=None):
-    
-    data = {}
-    messages = {}
-    bt_price = {'SSD':0.17, 'HDD':0.26}
-    data['type'] = dtype
-    if dtype not in bt_price.keys():
-        dtype='SSD'
-        messages['default_type'] ='Unrecognized Storage Type: Using SSD'
-    
-    data['size'] = size
-    
-    data['unit']=unit
-    if unit.upper() not in units.keys():
-        unit='GB'
-        messages['default_unit'] = 'Unrecognized Unit Type: Using GB'
-
-    data['fees'] = bt_price[dtype] * size * units[unit]
-    output= {'globals':globals,'messages': messages, 'data': data}
-    return output
-
 @app.route("/pricing/ds_pricing/")
 def __def_ds_pricing():
     return ds_pricing()
 
+# refactor this is junky 
 def get_input(reads=30000, writes=20000, storage=100, scale=0.0):
     inputs = {}
     inputs['reads']   = reads 
@@ -159,7 +83,8 @@ def scale_data(data,inputs):
 
 def format_data(data):
     """
-    can set up a config grid -- naming driving formatting
+    set up a config grid -- naming driving formatting
+    'key': 'format' ... apply
     """
     cost     = { key:'${:,.2f}'.format(value) for key, value in data.items() if 'cost' in key }
     capacity = { key:'{:,} / sec'.format(value) for key, value in data.items() if key in ['nodes_read_capacity','nodes_write_capacity']}
@@ -203,7 +128,7 @@ def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
     output= {'inputs': inputs, 'globals': globals,'data': data}
     return output    
 
-@app.route("/pricing/lp/json", methods=['GET','OPTIONS'])
+@app.route("/pricing/lp/json")
 def lp_json():
     o1 = ds_pricing()['data']
     o2 = bt_pricing()['data']
@@ -211,7 +136,7 @@ def lp_json():
     output = { 'globals' :globals , 'datastore': o1, 'bigtable': o2, 'spanner' :o3} 
     return output 
 
-@app.route("/pricing/lp/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>", methods=['GET','OPTIONS'])
+@app.route("/pricing/lp/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def lp_json_params(reads=30000, writes=20000, storage=100, scale=0.0):
     o1 = ds_pricing(reads,writes,storage,scale)['data']
     o2 = bt_pricing(reads,writes,storage,scale)['data']
@@ -237,7 +162,7 @@ def lp_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
     return o1 + o2 + o3
     #gh =json2html.convert(globals)
 
-@app.route("/pricing/bt_nodes/")
+@app.route("/pricing/bt")
 def __def_bt_pricing():
     return bt_pricing()
 
@@ -267,16 +192,16 @@ def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
     data['location'] = config['location']
     data['storage_base_cost'] = config['storage_base_cost']['ssd']            #0.17 #ssd
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
-    data['replicated_storage_cost'] = data['storage_cost'] * (data['clusters']  - 1 )          
 
+    data['replicated_storage_cost'] = data['storage_cost'] * (data['clusters']  - 1 )          
     data['node_base_cost'] = config['node_base_cost']   #0.65 #per/hr
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
     data['total_cost_single_region'] = data['storage_cost']  + data['node_cost']
 
-    #replication / network 
+    # replication / network 
     # need dual regional clusters 
     data['replicated_data_size'] = math.ceil(data['monthly_writes'] * config['rec_size'] / 1024 / 1024) #GBs
-    app.logger.info(data['replicated_data_size']/1024.0)
+    app.logger.info('replicated data size %.2f', data['replicated_data_size']/1024.0)
 
     i = 1 if data['replicated_data_size']/1024.0 < 10 else 2 
     
@@ -290,22 +215,7 @@ def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
     output= {'inputs': inputs, 'globals':globals,'data': data, 'config': config}
     return output    
 
-@app.route("/pricing/tasks")
-def task_pricing():
-    data={}
-    data['tasks_per_second']=10000
-    data['task_size_kb']=1.0
-
-    data['daily_tasks'] = data['tasks_per_second'] * globals['seconds_to_days']
-    data['monthly_tasks'] = data['daily_tasks'] * 30
-
-    # no negatives
-    data['billable_tasks'] = max( data['monthly_tasks'] - (5 * 10*10 ), 0)
-    data['task_fees'] = data['billable_tasks']/(10**7) * globals['task_rates']
-    
-    output= {'globals':globals,'data': data}
-    return output
-
+#refactor? probably need real classes...
 def calc_nodes(data,c):
     # need to buffer nodes to not run out of IO on spikes or storage
     
@@ -339,77 +249,28 @@ def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
     # multi-regions
     config = { 'multi': {'r': 7000.0, 'w': 1800.0, 's': 2.0},
                'single':{ 'r': 10000.0, 'w': 2000.0, 's': 2.0}
-            }
+    }
 
     data={}
+    data['type'] = 'Multi Region'
+    data['location'] = 'nam3'
+    data['clusters'] = 1
+
     inputs = get_input(reads,writes,storage,scale)
     data=scale_data(data,inputs)
-    data['type'] = 'Multi Region'
     calc_nodes(data, config['multi'])
     
-    
-    #cost = {k: v for k, v in data.items() if 'cost' in k}
-    app.logger.info('test')
-    #data['CostNode'] = sorted(cost, key=cost.get, reverse=True)[:3]
-
-    data['location'] = 'nam3'
     data['storage_base_cost'] = 0.50
-    data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 10**3 # TB to GB
+    data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
 
     data['node_base_cost'] = 3.0
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
     data['total_cost'] =  data['storage_cost']  + data['node_cost']
-    data['clusters'] = 1
-    format_data(data)
-    output= {'globals':globals,'data': data}
-    return output
-
-@app.route("/pricing/pubsub")
-def pubsub_pricing():
-    data={}
-    #3 MiB/second x 3600 seconds/hour x 24 hours/day x 30 days/month x 1 month/(2^20 MiB/TiB) = 7.416 TiB
-   
-    data['messages_per_second']=370000
-    data['avg_msg_size_kb']=1.0#kb
-    data['average_subscription_count']=100
-    data['per_second_throughput'] = data['messages_per_second'] * data['avg_msg_size_kb'] * (data['average_subscription_count']+1)
-    data['gbs'] = data['per_second_throughput']  /1024/1024
-    data['daily-gb'] = data['gbs'] * globals['seconds_to_days']
-    data['monthly-gb'] = data['daily-gb'] * 30
-    data['monthly-tb'] = data['monthly-gb']/1024.0
-    data['monthly_charged_tbs'] = data['monthly-tb'] - globals['free'] #TBs
-    data['core-fees'] = data['monthly_charged_tbs'] * globals['core_fee']
-   
-
-    #subscriptions
-   
-    #data['average_subscription_count']=5
-    data['retention_active']=1
-    data['retention_active_percent']=.05
-
-    data['subscription_retention_term_volume'] = data['daily-gb'] * globals['retention_term']
-    data['subscription_fees'] = data['subscription_retention_term_volume'] \
-                                 * globals['subscription_retention_fee'] \
-                                 * data['retention_active'] * data['retention_active_percent']
     
-    #snapshots
-    data['snapshot_active']=0
-    data['snapshots_per_month']=1
-    data['avg_snapshot_size'] = data['daily-gb'] * 1/2
-    data['snapshot_fees'] = 1/2 * data['snapshots_per_month'] \
-                            * data['average_subscription_count'] \
-                            * data['daily-gb'] \
-                            * data['avg_msg_size_kb'] \
-                            * globals['snapshot_fee'] * data['snapshot_active']
+    format_data(data)
 
-    data['total_fees'] = "{0:.2f}".format(data['snapshot_fees'] + data ['subscription_fees'] \
-        + data['core-fees'])
-
-    output= {'globals':globals,'data': data}
-    return output #jsonify(output) #globals,data #jsonify(data)
-    #dstr=json.dumps(data, indent=4)
-
-    #return "<pre>Fees are {0}</pre>".format(dstr) 
+    output= {'globals':globals,'data': data, 'config': config}
+    return output
 
 @app.route('/app/')
 def webapp():
@@ -419,12 +280,10 @@ def webapp():
 def index():
     return site_map()
 
-# https://stackoverflow.com/questions/13317536/get-list-of-all-routes-defined-in-the-flask-app
 def has_no_empty_params(rule):
     defaults = rule.defaults if rule.defaults is not None else ()
     arguments = rule.arguments if rule.arguments is not None else ()
     return len(defaults) >= len(arguments)
-
 
 @app.route("/site-map/<o_format>")
 def site_map(o_format='html'):
@@ -444,7 +303,7 @@ def site_map(o_format='html'):
 
 def weblinks(links,format='html'):
     if format == 'json': return jsonify(links)
-    link_text='<br><a href="{0}"> {1}</a>'
+    link_text='<li><a href="{0}"> {1}</a></li>'
     op=" "
     for t in links:
         print(t)

@@ -1,4 +1,5 @@
 html, body {
+    width: 800px;
     font-weight: 200;
   }
   
@@ -8,14 +9,15 @@ html, body {
     padding-top: 5px;
   }
   
-  img#gclogo {
+  .gclogo {
     width: inherit;
     height: inherit;
+    border-bottom: 1px solid black;
+    align-content:center;
   }
-
-  div#queryForm {
-    padding: 1px 0px 10px 0px;
-    height: 120px;
+  img#gclogo {
+    width: 80%;
+    padding-left: 40px;
   }
   
   div.flex-row {
@@ -23,6 +25,9 @@ html, body {
     display: flex;
     -webkit-flex-direction: row;
     flex-direction: row;
+    flex-wrap: wrap;
+    width: 100%;
+    flex-basis:content;
   }
   
   div.flex-column {
@@ -30,14 +35,17 @@ html, body {
     display: flex;
     -webkit-flex-direction: column;
     flex-direction: column;
-    flex-wrap: nowrap;
-    flex-flow: row nowrap;
+    flex-wrap: wrap;
+    /*flex-flow: row ;*/
+    flex-basis: auto;
+    flex: 1;
   }
 
   div#inputBox {
+    /*display: flex;
     flex: 0 0 auto;
     padding-top: 20px;
-    padding-left: 10px;
+    padding-left: 10px; */
     text-align: center;
   }
 
@@ -101,7 +109,3 @@ html, body {
     flex: 0 0 400px;
   }
   
-  /*
-  Item Style
-  */
- 

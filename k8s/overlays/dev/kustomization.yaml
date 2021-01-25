@@ -1,0 +1,7 @@
+kind: Kustomization
+
+bases:
+- ../../base # relative path to the base folder
+
+patchesStrategicMerge:
+  - pricer-deployment.yaml

@@ -1,14 +1,16 @@
   /* https://auralinna.blog/post/2018/how-to-create-material-design-like-form-text-fields/ */
   /* Actual code example */
   .form-field {
-    display: block;
-    margin-bottom: 16px;
+    display: inherit;
+    padding: 3px 3px 3px 3px; 
+    margin: 3px 3px 3px 3px;
+    width: 388px;
   }
   
   .form-field__label {
     font-size: 0.75rem;
     transform: translateY(-14px);
-    display: block;
+    display: inherit;
     font-weight: normal;
     left: 0;
     margin: 0;
@@ -31,7 +33,7 @@
     border-bottom: 2px solid #f8e805;
     bottom: 0;
     content: "";
-    display: block;
+    display: inherit;
     left: 0;
     margin: 0 auto;
     position: absolute;
@@ -50,7 +52,7 @@
     border: 0;
     border-bottom: 1px solid #999;
     color: #333;
-    display: block;
+    display: inherit; 
     font-size: 1.2rem;
     margin-top: 24px;
     outline: 0;

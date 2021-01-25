@@ -1,51 +1,55 @@
 'use strict';
-/* seed search */
-const seedSearch = 'destiny';
 
 /*
- * this is the constant header and first child Node of the body - note the video player
- * could add all this via js, but I demonstrate that below in init function
+ * this is the constant header and first child Node of the body
  */
-const mastHTML = `
-    <img id="gclogo" src="/static/img/cloud-logo.svg"> 
-    <div class="flex-columns">
-      <div id="inputBox">
-        <div class="form-field">
-          <div class="form-field__control">
-            <input type="text" id="reads" class="form-field__input" placeholder="30000"  autofocus />
-            <label for="reads" class="form-field__label">Reads per Second</label>
-            <div class="form-field__bar"></div>
-          </div>
-        </div>
-        <div class="form-field">
-          <div class="form-field__control">
-            <input type="text" id="writes" class="form-field__input" placeholder="20000"   />
-            <label for="writes" class="form-field__label">Writes per Second</label>
-            <div class="form-field__bar"></div>
-          </div>
-        </div>
-        <div class="form-field">
-          <div class="form-field__control">
-            <input type="text" id="storage" class="form-field__input" placeholder="100"  />
-            <label for="storage" class="form-field__label">Storage (TB)</label>
-            <div class="form-field__bar"></div>
-          </div>
-        </div>
-        <div class="form-field">
-          <div class="form-field__control">
-            <input type="text" id="scale" class="form-field__input" placeholder="0.0"  />
-            <label for="scale" class="form-field__label">Growth Scale (0.0-1.0)</label>
-            <div class="form-field__bar"></div>
-          </div>
-        </div>
+const mastHTML = ` 
+<div class="gclogo"><img id="gclogo" src="/static/img/cloud-logo.svg"></div>
+<div id="inputBox" class="flex-column">
   
-        <input type="button" value="Get Estimates"
-               onClick="app.getEstimates()")>
-        
-      </div>
-      <div id="dataport">
+  <div class="flex-row">
+
+    <div class="form-field">
+      <div class="form-field__control">
+        <input type="text" id="reads" class="form-field__input" placeholder="30000"  autofocus />
+        <label for="reads" class="form-field__label">Reads per Second</label>
+        <div class="form-field__bar"></div>
       </div>
     </div>
+
+    <div class="form-field">
+      <div class="form-field__control">
+        <input type="text" id="writes" class="form-field__input" placeholder="20000"   />
+        <label for="writes" class="form-field__label">Writes per Second</label>
+        <div class="form-field__bar"></div>
+    </div>  
+    </div>
+
+  </div>
+
+  <div class="flex-row">
+
+    <div class="form-field">
+      <div class="form-field__control">
+        <input type="text" id="storage" class="form-field__input" placeholder="100"  />
+        <label for="storage" class="form-field__label">Storage (TB)</label>
+        <div class="form-field__bar"></div>
+      </div>
+    </div>
+
+    <div class="form-field">
+      <div class="form-field__control">
+        <input type="text" id="scale" class="form-field__input" placeholder="0.0"  />
+        <label for="scale" class="form-field__label">Growth Scale (0.0-1.0)</label>
+        <div class="form-field__bar"></div>
+      </div>
+    </div>
+    
+   </div>
+</div>
+
+<div id="dataport">
+</div>
 `;
 
 /*
@@ -98,16 +102,14 @@ class Inputs {
 
     }
 
-
-
 class App {
-    constructor() {
-    
+
+    constructor() {  
       this._initState = false;
       this._inputs   = undefined;
       this._tableset = undefined;
-
     }
+
     get inputs() {
         return this._inputs;
     }
@@ -118,12 +120,9 @@ class App {
     get tableset() {
         return this._tableset;
     }
-
     set tableset(tableset) {
         this._tableset=tableset;
     }
-
-    
 
     initTables(response) {
        if (response === undefined) return false;
@@ -147,9 +146,7 @@ class App {
       document.getElementById('dataport').appendChild(tablesetBody);
     }
     /* could be more efficient than full div replace here */
-    tablesetBody.innerHTML = this.tableset.toDiv();
-    //this.pager.assignEvents();
-    //this.pager.initState = true;
+    tablesetBody.innerHTML = this.tableset.renderView();
     return true;
   }
 
@@ -188,6 +185,16 @@ class App {
     /* init screen */
     appHTMLContainer.appendChild(queryForm);
     document.body.appendChild(appHTMLContainer);
+    let inputs = document.querySelectorAll('.form-field__input');
+   
+    inputs.forEach((input) => {
+       input.addEventListener('keypress', function(e) {
+          if (e.key === 'Enter') app.getEstimates();
+       }
+       )
+      }
+    );
+    
 
     if (this._inputs === undefined) this.inputs = new Inputs()
 
@@ -201,4 +208,5 @@ var app = new App();
 /* once all scripts, css and body are loaded, insert the search form */
 window.onload = () => {
   app.init();
+  app.getEstimates();
 }
