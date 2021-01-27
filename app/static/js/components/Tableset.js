@@ -52,6 +52,16 @@ class Tableset {
     properCase(s) {
       return (!this.cleanvalues.has(s)) ? s : s.replace(/_/g, ' ').replace(/(?: |\b)(\w)/g, function(s) { return s.toUpperCase()});
     }
+
+    copyToClipboard() {
+      var r = document.createRange();
+      r.selectNode(document.getElementById("itemDisplay"));
+      window.getSelection().removeAllRanges(); 
+      window.getSelection().addRange(r);
+      document.execCommand('copy');
+      window.getSelection().removeAllRanges();
+    }
+
     renderView() {
         
         let grid = this.assembleKeys();
@@ -64,7 +74,7 @@ class Tableset {
           <content>
             <div class="container">
               <div class="tables">
-                <div id="itemDisplay">
+                <div id="itemDisplay" onclick="app.tableset.copyToClipboard();">
                   ${gridHTML}
                 </div>
               </div>
