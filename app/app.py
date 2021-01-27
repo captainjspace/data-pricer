@@ -86,9 +86,11 @@ def format_data(data):
     set up a config grid -- naming driving formatting
     'key': 'format' ... apply
     """
+    number_fields = ['reads','writes','replicated_data_size','io_unit']
+
     cost     = { key:'${:,.2f}'.format(value) for key, value in data.items() if 'cost' in key }
     capacity = { key:'{:,} / sec'.format(value) for key, value in data.items() if key in ['nodes_read_capacity','nodes_write_capacity']}
-    numbers  = { key:'{:,.0f}'.format(value) for key, value in data.items() if 'monthly' in key }
+    numbers  = { key:'{:,.0f}'.format(value) for key, value in data.items() if 'monthly' in key or key in number_fields }
     data['storage']= '{:,} (TB)'.format(data['storage'])
     if 'nodes_storage_capacity' in data:
         data['nodes_storage_capacity']= '{:,} (TB)'.format(data['nodes_storage_capacity'])
@@ -175,7 +177,7 @@ def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
         'w': 10000.0, 
         's': 2.5, 
         'rec_size': 1024, #record size in kb
-        'rec_pct_chg': 0.001,
+        'rec_pct_chg': 0.002,  #saying that 500th of writen data actually results in a delta
         'replication_base_cost': [0.12,0.11,0.08],
         'storage_base_cost' : {'ssd' : 0.17 },
         'node_base_cost': 0.65,
@@ -200,14 +202,14 @@ def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
 
     # replication / network 
     # need dual regional clusters 
-    data['replicated_data_size'] = math.ceil(data['monthly_writes'] * config['rec_size'] / 1024 / 1024) #GBs
+    data['replicated_data_size'] = math.ceil(data['monthly_writes'] * config['rec_size'] / 1024 / 1024 * config['rec_pct_chg']) #GBs
     app.logger.info('replicated data size %.2f', data['replicated_data_size']/1024.0)
 
     i = 1 if data['replicated_data_size']/1024.0 < 10 else 2 
     
     data['replication_base_cost'] = config['replication_base_cost'][i]
     
-    data['replication_network_cost'] = data['replicated_data_size'] * config['rec_pct_chg'] * data['replication_base_cost']
+    data['replication_network_cost'] = data['replicated_data_size']  * data['replication_base_cost']
 
     # cluster+storage x2 + replicated changes
     data['total_cost'] = data['total_cost_single_region'] * data['clusters'] + data['replication_network_cost']
