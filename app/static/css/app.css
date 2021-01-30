@@ -1,10 +1,10 @@
 html, body {
-    width: 1200px;
+    width: 1600px;
     font-weight: 200;
   }
   
   div.container {
-    width: 1200px;
+    width: 1600px;
     border: 1px solid black;
     padding-top: 0px;
   }
@@ -42,7 +42,7 @@ html, body {
   }
 
   div#inputBox {
-    padding-left: 10px; 
+    padding-left: 2%; 
     text-align: center;
   }
 
@@ -103,6 +103,6 @@ html, body {
   div#total {
     width: 50%;
     padding: 10px 0px 5px 10px;
-    flex: 0 0 600px;
+    flex: 0 0 800px;
   }
   
