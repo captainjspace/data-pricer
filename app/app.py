@@ -108,6 +108,7 @@ def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
 
     data['location'] = 'nam5'
     data['type'] = 'Global Managed ACID'
+    data['storage_type'] = 'ssd'
     data['storage_base_cost'] = 0.18
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
 
@@ -140,11 +141,17 @@ def lp_json():
 
 @app.route("/pricing/lp/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def lp_json_params(reads=30000, writes=20000, storage=100, scale=0.0):
-    o1 = ds_pricing(reads,writes,storage,scale)['data']
-    o2 = bt_pricing(reads,writes,storage,scale)['data']
-    o3 = spanner_pricing(reads,writes,storage,scale)['data']
-    output = { 'Datastore': o1, 'Bigtable': o2, 'Spanner' :o3} 
-    return output
+    return {
+      'Datastore' : ds_pricing(reads,writes,storage,scale)['data'],
+      'Bigtable Multi Replication': bt_pricing(reads,writes,storage,scale)['data'],
+      'Bigtable Single Replication': bt_pricing(reads,writes,storage,scale, 'repl-single')['data'],
+      'Bigtable Single': bt_pricing(reads,writes,storage,scale,'single', 'hdd')['data'],
+      'Spanner Multi': spanner_pricing(reads,writes,storage,scale)['data'],
+      'Spanner Single': spanner_pricing(reads,writes,storage,scale,'single')['data'],
+      'Spanner Global': spanner_pricing(reads,writes,storage,scale,'global')['data']
+    }
+    #output = { 'Datastore': o1, 'Bigtable': o2, 'Spanner' :o3} 
+    #return output
 
 @app.route("/pricing/lp/html")
 def lp_html():
@@ -169,58 +176,100 @@ def __def_bt_pricing():
     return bt_pricing()
 
 @app.route("/pricing/bt/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
-def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
+def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0,ctype='repl-multi',stype='ssd'):
      
     #multi region - 10K R/s, 10 W/s, 2.5 SSD per node
-    config = { 
-        'r':10000.0, 
-        'w': 10000.0, 
-        's': 2.5, 
-        'rec_size': 1024, #record size in kb
-        'rec_pct_chg': 0.002,  #saying that 500th of writen data actually results in a delta
-        'replication_base_cost': [0.12,0.11,0.08],
-        'storage_base_cost' : {'ssd' : 0.17 },
-        'node_base_cost': 0.65,
-        'location': 'us-central1,europe-west1'
+    ctypes = ['single', 'repl-single', 'repl-multi' ]
+    if ctype is not None and ctype not in ctypes: ctype=ctype[2]
+    stypes = ['ssd','hdd']
+    if stype is not None and stype not in stypes: stypes=stypes[0]
+
+    config = {
+        'repl-multi': {
+            'c': 4,
+            'r': 10000.0,
+            'w': 10000.0,
+            's': 2.5,
+            'm': 'M-S Repl, Eventual',
+            'rec_size': 1024,  # record size in kb
+            'rec_pct_chg': 0.002,  # saying that 500th of writen data actually results in a delta
+            'replication_base_cost': [0.12, 0.11, 0.08],
+            'storage_base_cost': {'ssd': 0.17, 'hdd': 0.026},
+            'node_base_cost': 0.65,
+            'location': 'us-central1,europe-west1'
+        },
+        'repl-single': {
+            'c': 2,
+            'r': 10000.0,
+            'w': 10000.0,
+            's': 2.5,
+            'm': 'Single Replication',
+            'storage_base_cost': {'ssd': 0.17, 'hdd': 0.026},
+            'node_base_cost': 0.65,
+            'location': 'us-central1,europe-west1',
+            'rec_size': 1024,  # record size in kb
+            'rec_pct_chg': 0.002,  # saying that 500th of writen data actually results in a delta
+            'replication_base_cost': [0.12, 0.11, 0.08]
+        },
+         'single': {
+            'c': 1,
+            'r': 10000.0,
+            'w': 10000.0,
+            's': 2.5,
+            'm': 'Single Region',
+            'storage_base_cost': {'ssd': 0.17, 'hdd': 0.026},
+            'node_base_cost': 0.65,
+            'location': 'us-central1',
+            'rec_size': 1024,  # record size in kb
+            'rec_pct_chg': 0.000,  # saying that 500th of writen data actually results in a delta
+            'replication_base_cost': [0.12, 0.11, 0.08]
         }
+        
+
+    }
+
+    app.logger.info("config: {}, storage: {}".format(ctype,stype))
+    cfg = config[ctype]
     data={}
     inputs = get_input(reads,writes,storage,scale)
     data=scale_data(data,inputs)
-    data['type'] = 'M-S Repl, Eventual'
-    data['clusters'] = 4
-    calc_nodes(data,config)
+
+    data['type'] = cfg['m']
+    data['clusters'] = cfg['c']
+    calc_nodes(data,config[ctype])
 
     # set config to display 
-    data['location'] = config['location']
-    data['storage_base_cost'] = config['storage_base_cost']['ssd']            #0.17 #ssd
+    data['location'] = cfg['location']
+    data['storage_type']=stype
+    data['storage_base_cost'] = cfg['storage_base_cost'][stype]            #0.17 #ssd
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
 
     data['replicated_storage_cost'] = data['storage_cost'] * (data['clusters']  - 1 )          
-    data['node_base_cost'] = config['node_base_cost']   #0.65 #per/hr
+    data['node_base_cost'] = cfg['node_base_cost']   #0.65 #per/hr
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
     data['total_cost_single_region'] = data['storage_cost']  + data['node_cost']
 
     # replication / network 
     # need dual regional clusters 
-    data['replicated_data_size'] = math.ceil(data['monthly_writes'] * config['rec_size'] / 1024 / 1024 * config['rec_pct_chg']) #GBs
-    app.logger.info('replicated data size %.2f', data['replicated_data_size']/1024.0)
-
+    data['replicated_data_size'] = math.ceil(data['monthly_writes'] * cfg['rec_size'] / 1024 / 1024 * cfg['rec_pct_chg']) #GBs
+    #app.logger.info('replicated data size %.2f', data['replicated_data_size']/1024.0)
     i = 1 if data['replicated_data_size']/1024.0 < 10 else 2 
-    
-    data['replication_base_cost'] = config['replication_base_cost'][i]
-    
+    data['replication_base_cost'] = cfg['replication_base_cost'][i]
+
     data['replication_network_cost'] = data['replicated_data_size']  * data['replication_base_cost']
 
     # cluster+storage x2 + replicated changes
     data['total_cost'] = data['total_cost_single_region'] * data['clusters'] + data['replication_network_cost']
     format_data(data)
-    output= {'inputs': inputs, 'globals':globals,'data': data, 'config': config}
+    output= {'inputs': inputs, 'globals':globals,'data': data, 'config': cfg}
     return output    
 
 #refactor? probably need real classes...
 def calc_nodes(data,c):
     # need to buffer nodes to not run out of IO on spikes or storage
-    
+    app.logger.info(data['reads']  , c)
+    #data['storage_type'] = 'ssd' if c['storage_base_cost'][stype]
+
     data['read_nodes_min']  = math.ceil(data['reads']  / c['r']) 
     data['write_nodes_min'] = math.ceil(data['writes'] / c['w'])
     data['storage_nodes_min'] = math.ceil(data['storage'] / c['s'] )
@@ -243,29 +292,36 @@ def calc_nodes(data,c):
 def __def_spanner_pricing():
     return spanner_pricing()
 
+
 @app.route("/pricing/spanner/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
-def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1):
+def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1, ctype='multi'):
 
     # single-regions (3 zones)
     #config = { 'r': 10000.0, 'w': 2000.0, 's': 2.0}
     # multi-regions
-    config = { 'multi': {'r': 7000.0, 'w': 1800.0, 's': 2.0},
-               'single':{ 'r': 10000.0, 'w': 2000.0, 's': 2.0}
+    ctypes = ['single','multi','global']
+    if ctype is not None and ctype not in ctypes: ctype='multi'
+
+    config = { 
+        'global': {'r': 7000.0,  'w': 1800.0, 's': 2.0, 'nc': 9.0, 'm': 'Global',       'l': 'nam3',       'sc':0.9},
+        'multi': {'r': 7000.0,  'w': 1800.0, 's': 2.0, 'nc': 3.0, 'm': 'Multi Region',  'l': 'nam3',       'sc':0.5},
+        'single':{'r': 10000.0, 'w': 2000.0, 's': 2.0, 'nc': 0.9, 'm': 'Single Region', 'l':'us-central1', 'sc':0.3}
     }
 
     data={}
-    data['type'] = 'Multi Region'
-    data['location'] = 'nam3'
+    data['type'] = config[ctype]['m']
+    data['location'] = config[ctype]['l']
     data['clusters'] = 1
 
     inputs = get_input(reads,writes,storage,scale)
     data=scale_data(data,inputs)
-    calc_nodes(data, config['multi'])
+    calc_nodes(data, config[ctype])
     
-    data['storage_base_cost'] = 0.50
+    data['storage_type'] = 'ssd'
+    data['storage_base_cost'] = config[ctype]['sc']
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
 
-    data['node_base_cost'] = 3.0
+    data['node_base_cost'] = config[ctype]['nc']
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
     data['total_cost'] =  data['storage_cost']  + data['node_cost']
     

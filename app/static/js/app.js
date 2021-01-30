@@ -172,7 +172,7 @@ class App {
   init() {
     let appHTMLContainer = document.createElement('div');
     appHTMLContainer.id = 'app';
-    appHTMLContainer.style.width = '800px';
+    appHTMLContainer.style.width = '1200px';
     /* query form */
     let queryForm = document.createElement('div');
     queryForm.id = 'queryForm';
