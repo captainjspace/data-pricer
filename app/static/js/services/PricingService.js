@@ -4,7 +4,7 @@
 class PricingService {
   constructor() {
     //this._baseUrl = "http://localhost/pricing/lp/json/";
-    this._baseUrl = "/pricing/lp/json/";
+    this._baseUrl = "/pricing/lp/json/conf";
     this._headers = {
       accept: "application/json",
       clientId: "w3moe641p9cucblko66t42khea6rxk",
@@ -21,14 +21,15 @@ class PricingService {
    */
   getStreamData(inputs, offset=0) {
     //let _offset = (offset) ? offset : 0;
-    let url = this._baseUrl + inputs.reads + '/' + inputs.writes + '/' + inputs.storage + '/' + inputs.scale
+    let url = this._baseUrl //+ inputs.reads + '/' + inputs.writes + '/' + inputs.storage + '/' + inputs.scale
     return new Promise((resolve, reject) => {
       let xhr = new XMLHttpRequest();
-      xhr.open('GET', url);
+      xhr.open('POST', url);
       /* inject required headers */
       xhr.setRequestHeader('Accept', this._headers.accept);
       xhr.setRequestHeader('Client-ID', this._headers.clientId);
-      xhr.send();
+      xhr.d
+      xhr.send(JSON.stringify(inputs));
       xhr.onload = () => {
         if (xhr.status == 200) {
           this._data = JSON.parse(xhr.response); 

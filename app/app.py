@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-import math
-from flask import Flask, url_for, jsonify, render_template
+import math,json
+from flask import Flask, url_for, jsonify, render_template, request
 from json2html import *
+
 
 #aspirational - use pricing api
 #import requests
@@ -76,6 +77,7 @@ def get_input(reads=30000, writes=20000, storage=100, scale=0.0):
 
 # make this gen monthlies in to an annual
 def scale_data(data,inputs):
+    app.logger.info('{}'.format(inputs))
     data['scaler'] = 1 + inputs['scale']
     data['reads'] = math.ceil(inputs['reads'] * data['scaler'])
     data['writes'] = math.ceil(inputs['writes'] * data['scaler'])
@@ -102,7 +104,7 @@ def format_data(data):
     return data
 
 @app.route("/pricing/ds/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
-def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.0, ctype='multi-region'):
+def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.0, ctype='multi-region', disc_factor=0.85):
 
     ctypes = ['single-region', 'multi-region']
     if ctype is not None and ctype not in ctypes: ctype=ctypes[1]
@@ -158,7 +160,9 @@ def ds_pricing(reads=30000, writes=20000, storage=100, scale=0.0, ctype='multi-r
 
     data['write_cost'] = data['monthly_writes']  / data['io_unit'] * data['write_base_cost']
     data['io_cost'] = data['read_cost'] + data['write_cost']
+    
     data['total_cost'] = data['io_cost'] + data['storage_cost']
+    data['total_discounted_cost']= data['total_cost'] * disc_factor
     
     format_data(data)
     
@@ -174,17 +178,50 @@ def lp_json():
     output = { 'globals' :globals , 'datastore': o1, 'bigtable': o2, 'spanner' :o3} 
     return output 
 
+@app.route("/pricing/lp/json/conf", methods=['POST'])
+def lp_json_conf():
+
+    app.logger.info('POSTED:{}'.format(request.data))
+    cfg= {
+        'reads': 30000,
+        'writes': 20000,
+        'storage': 100,
+        'scale': 0.0,
+        'bt_discount_factor': 0.85,
+        'ds_discount_factor': 0.75,
+        'spanner_discount_factor': 0.70
+    }
+    form = json.loads(request.data)
+    cfg.update(form)
+
+
+    return {
+
+      'Datastore Multi' : ds_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'multi-region', cfg['ds_discount_factor'])['data'],
+      'Datastore Single' : ds_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'single-region', cfg['ds_discount_factor'])['data'],
+
+      'Bigtable Multi Replication': bt_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'], 'repl-multi', 'ssd', cfg['bt_discount_factor'])['data'],
+      'Bigtable Single Replication': bt_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'], 'repl-single', 'ssd', cfg['bt_discount_factor'])['data'],
+      'Bigtable Single': bt_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'single', 'hdd', cfg['bt_discount_factor'])['data'],
+  
+      'Spanner Multi': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'], 'multi', cfg['spanner_discount_factor'])['data'],
+      'Spanner Single': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'single', cfg['spanner_discount_factor'])['data'],
+      'Spanner Global': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'global', cfg['spanner_discount_factor'])['data']
+
+    }
+
 @app.route("/pricing/lp/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def lp_json_params(reads=30000, writes=20000, storage=100, scale=0.0):
     return {
-      'Datastore Multi' : ds_pricing(reads,writes,storage,scale)['data'],
-      'Datastore Single' : ds_pricing(reads,writes,storage,scale,'single-region')['data'],
-      'Bigtable Multi Replication': bt_pricing(reads,writes,storage,scale)['data'],
-      'Bigtable Single Replication': bt_pricing(reads,writes,storage,scale, 'repl-single')['data'],
-      'Bigtable Single': bt_pricing(reads,writes,storage,scale,'single', 'hdd')['data'],
-      'Spanner Multi': spanner_pricing(reads,writes,storage,scale)['data'],
-      'Spanner Single': spanner_pricing(reads,writes,storage,scale,'single')['data'],
-      'Spanner Global': spanner_pricing(reads,writes,storage,scale,'global')['data']
+
+      'Datastore Multi' : ds_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'],
+      'Datastore Single' : ds_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'single-region')['data'],
+      'Bigtable Multi Replication': bt_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'],
+      'Bigtable Single Replication': bt_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'], 'repl-single')['data'],
+      'Bigtable Single': bt_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'single', 'hdd')['data'],
+      'Spanner Multi': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'],
+      'Spanner Single': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'single')['data'],
+      'Spanner Global': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'global')['data']
     }
     #output = { 'Datastore': o1, 'Bigtable': o2, 'Spanner' :o3} 
     #return output
@@ -201,9 +238,9 @@ def lp_html():
 
 @app.route("/pricing/lp/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def lp_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
-    o1 = json2html.convert(ds_pricing(reads,writes,storage,scale)['data'])
-    o2 = json2html.convert(bt_pricing(reads,writes,storage,scale)['data'])
-    o3 = json2html.convert(spanner_pricing(reads,writes,storage,scale)['data'])
+    o1 = json2html.convert(ds_pricing(rcfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'])
+    o2 = json2html.convert(bt_pricing(rcfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'])
+    o3 = json2html.convert(spanner_pricing(rcfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'])
     return o1 + o2 + o3
     #gh =json2html.convert(globals)
 
@@ -212,7 +249,7 @@ def __def_bt_pricing():
     return bt_pricing()
 
 @app.route("/pricing/bt/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
-def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0,ctype='repl-multi',stype='ssd'):
+def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0,ctype='repl-multi',stype='ssd',disc_factor=0.85):
      
     #multi region - 10K R/s, 10 W/s, 2.5 SSD per node
     ctypes = ['single', 'repl-single', 'repl-multi' ]
@@ -295,6 +332,8 @@ def bt_pricing(reads=30000, writes=20000, storage=100, scale=0.0,ctype='repl-mul
 
     # cluster+storage x2 + replicated changes
     data['total_cost'] = data['total_cost_single_region'] * data['clusters'] + data['replication_network_cost']
+    data['total_discounted_cost'] = data['total_cost'] * disc_factor
+
     format_data(data)
     output= {'inputs': inputs, 'globals':globals,'data': data, 'config': cfg}
     return output    
@@ -329,7 +368,7 @@ def __def_spanner_pricing():
 
 
 @app.route("/pricing/spanner/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
-def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1, ctype='multi'):
+def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1, ctype='multi',disc_factor=0.85):
 
     # single-regions (3 zones)
     #config = { 'r': 10000.0, 'w': 2000.0, 's': 2.0}
@@ -387,6 +426,7 @@ def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1, ctype='mu
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
     data['total_cost'] =  data['storage_cost']  + data['node_cost']
+    data['total_discounted_cost'] = data['total_cost'] * disc_factor
     
     format_data(data)
 

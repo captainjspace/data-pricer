@@ -46,6 +46,36 @@ const mastHTML = `
     </div>
     
    </div>
+
+
+   <div class="flex-row ">
+
+      <div class="form-field z3">
+          <div class="form-field__control">
+              <input type="text" id="bt_discount_factor" class="form-field__input" placeholder="0.0"  />
+              <label for="bt_discount_factor" class="form-field__label">Bigtable Discount(%)</label>
+              <div class="form-field__bar"></div>
+          </div>
+      </div>
+
+      <div class="form-field z3">
+          <div class="form-field__control">
+              <input type="text" id="ds_discount_factor" class="form-field__input" placeholder="0.0"  />
+              <label for="ds_discount_factor" class="form-field__label">Datastore Discount(%)</label>
+              <div class="form-field__bar"></div>
+          </div>
+      </div>
+
+      <div class="form-field z3">
+          <div class="form-field__control">
+              <input type="text" id="spanner_discount_factor" class="form-field__input" placeholder="0.0"  />
+              <label for="spanner_discount_factor" class="form-field__label">Spanner Discount(%)</label>
+              <div class="form-field__bar"></div>
+          </div>
+      </div>
+
+   </div>
+
 </div>
 
 <div id="dataport">
@@ -63,41 +93,78 @@ class Inputs {
         this._writes = 20000;
         this._storage = 100
         this._scale = 0.0;  
+        this._bt_discount_factor = 0.15;
+        this._ds_discount_factor = 0.75;
+        this._spanner_discount_factor = 0.7;
       }
   
       get reads() {
           return this._reads;
       }
       set reads(reads) {
-          this._reads=reads
+          this._reads=parseInt(reads) || 0;
       }
   
       get writes() {
           return this._writes;
       }
       set writes(writes) {
-          this._writes = writes;
+          this._writes = parseInt(writes) || 0;
       }
   
       get storage() {
           return this._storage;
       }
       set storage(storage) {
-          this._storage = storage;
+          this._storage = parseInt(storage) || 0;
       }
       get scale() {
           return this._scale;
       }
       set scale(scale) {
-          this._scale=scale;
+          this._scale=parseFloat(scale) || 0.0;
       }
+      get bt_discount_factor () {
+        return this._bt_discount_factor
+      }
+      set bt_discount_factor (bt_discount_factor) {
+        this._bt_discount_factor=1-parseFloat(bt_discount_factor) || 0.0
+      }
+      get ds_discount_factor() {
+        return this._ds_discount_factor
+      }
+      set ds_discount_factor(ds_discount_factor) {
+        this._ds_discount_factor=1-parseFloat(ds_discount_factor) || 0.0
+      }
+      get spanner_discount_factor() {
+        return this._spanner_discount_factor
+      }
+      set spanner_discount_factor(spanner_discount_factor) {
+        this._spanner_discount_factor=1-parseFloat(spanner_discount_factor) || 0.0
+      }
+      
+
 
       setInputsFromForm() {
         this.reads = document.getElementById('reads').value || 30000
         this.writes = document.getElementById('writes').value || 20000
         this.storage = document.getElementById('storage').value || 100
         this.scale = parseFloat(document.getElementById('scale').value || 0).toFixed(1) 
-
+        this.bt_discount_factor = parseFloat(document.getElementById('bt_discount_factor').value || 0 ).toFixed(3) 
+        this.ds_discount_factor = parseFloat(document.getElementById('ds_discount_factor').value || 0 ).toFixed(3) 
+        this.spanner_discount_factor = parseFloat(document.getElementById('spanner_discount_factor').value || 0).toFixed(3) 
+      }
+      
+      getData() {
+        return {
+        'reads': this.reads,
+        'writes': this.writes,
+        'storage': this.storage,
+        'scale': this.scale,
+        'bt_discount_factor': this.bt_discount_factor,
+        'ds_discount_factor': this.ds_discount_factor,
+        'spanner_discount_factor': this.spanner_discount_factor
+        }
       }
 
     }
@@ -156,7 +223,7 @@ class App {
   getEstimates() {
     let dataService = new PricingService();
     this.inputs.setInputsFromForm();
-    dataService.getStreamData(this.inputs).then((response) => {
+    dataService.getStreamData(this.inputs.getData()).then((response) => {
       this.initTables(response);
 
     }).catch((err) => {
