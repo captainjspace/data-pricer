@@ -9,7 +9,7 @@ const mastHTML = `
   
   <div class="flex-row">
 
-    <div class="form-field">
+    <div class="form-field z3">
       <div class="form-field__control">
         <input type="text" id="reads" class="form-field__input" placeholder="30000"  autofocus />
         <label for="reads" class="form-field__label">Reads per Second</label>
@@ -17,12 +17,20 @@ const mastHTML = `
       </div>
     </div>
 
-    <div class="form-field">
+    <div class="form-field z3">
       <div class="form-field__control">
         <input type="text" id="writes" class="form-field__input" placeholder="20000"   />
         <label for="writes" class="form-field__label">Writes per Second</label>
         <div class="form-field__bar"></div>
-    </div>  
+      </div>  
+    </div>
+
+    <div class="form-field z3">
+      <div class="form-field__control">
+        <input type="text" id="storage" class="form-field__input" placeholder="100"  />
+        <label for="storage" class="form-field__label">Storage (TB)</label>
+        <div class="form-field__bar"></div>
+      </div>
     </div>
 
   </div>
@@ -31,8 +39,8 @@ const mastHTML = `
 
     <div class="form-field">
       <div class="form-field__control">
-        <input type="text" id="storage" class="form-field__input" placeholder="100"  />
-        <label for="storage" class="form-field__label">Storage (TB)</label>
+        <input type="text" id="ioscale" class="form-field__input" placeholder="0.0"  />
+        <label for="ioscale" class="form-field__label">Projected I/0 Growth Scale (0.0-1.0)</label>
         <div class="form-field__bar"></div>
       </div>
     </div>
@@ -40,7 +48,7 @@ const mastHTML = `
     <div class="form-field">
       <div class="form-field__control">
         <input type="text" id="scale" class="form-field__input" placeholder="0.0"  />
-        <label for="scale" class="form-field__label">Growth Scale (0.0-1.0)</label>
+        <label for="scale" class="form-field__label">Project Storage Growth Scale (0.0-1.0)</label>
         <div class="form-field__bar"></div>
       </div>
     </div>
@@ -96,6 +104,7 @@ class Inputs {
         this._bt_discount_factor = 0.15;
         this._ds_discount_factor = 0.75;
         this._spanner_discount_factor = 0.7;
+        this._ioscale = 0.0;
       }
   
       get reads() {
@@ -124,6 +133,12 @@ class Inputs {
       set scale(scale) {
           this._scale=parseFloat(scale) || 0.0;
       }
+      get ioscale() {
+        return this._ioscale;
+      }
+      set ioscale(ioscale) {
+        this._ioscale=parseFloat(ioscale) || 0.0;
+      }
       get bt_discount_factor () {
         return this._bt_discount_factor
       }
@@ -142,14 +157,13 @@ class Inputs {
       set spanner_discount_factor(spanner_discount_factor) {
         this._spanner_discount_factor=1-parseFloat(spanner_discount_factor) || 0.0
       }
-      
-
 
       setInputsFromForm() {
         this.reads = document.getElementById('reads').value || 30000
         this.writes = document.getElementById('writes').value || 20000
         this.storage = document.getElementById('storage').value || 100
         this.scale = parseFloat(document.getElementById('scale').value || 0).toFixed(1) 
+        this.ioscale = parseFloat(document.getElementById('ioscale').value || 0).toFixed(1) 
         this.bt_discount_factor = parseFloat(document.getElementById('bt_discount_factor').value || 0 ).toFixed(3) 
         this.ds_discount_factor = parseFloat(document.getElementById('ds_discount_factor').value || 0 ).toFixed(3) 
         this.spanner_discount_factor = parseFloat(document.getElementById('spanner_discount_factor').value || 0).toFixed(3) 
@@ -161,6 +175,7 @@ class Inputs {
         'writes': this.writes,
         'storage': this.storage,
         'scale': this.scale,
+        'ioscale': this.ioscale,
         'bt_discount_factor': this.bt_discount_factor,
         'ds_discount_factor': this.ds_discount_factor,
         'spanner_discount_factor': this.spanner_discount_factor

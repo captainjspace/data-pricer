@@ -90,7 +90,7 @@ html, body {
     /*color:tomato;*/
   }
 
-  tr#total_cost {
+  tr#total_cost, tr#total_discounted_cost {
     font-size: 120%;
     font-style: italic; 
     font-weight: bold;
