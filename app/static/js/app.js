@@ -229,9 +229,17 @@ class App {
     }
     /* could be more efficient than full div replace here */
     tablesetBody.innerHTML = this.tableset.renderView();
+    this.assignCopyEvent()
     return true;
   }
-
+  
+  assignCopyEvent() {
+    document.getElementById("Measure").childNodes.forEach( (cell) => {
+      cell.addEventListener('click', function (e) {
+        app.tableset.copyToClipboard();
+      })
+    })
+  }
    /*
    * call python service
    */
@@ -240,11 +248,11 @@ class App {
     this.inputs.setInputsFromForm();
     dataService.getStreamData(this.inputs.getData()).then((response) => {
       this.initTables(response);
-
     }).catch((err) => {
       console.log(err);
     });
-    //localStorage.setItem('search', this.currentSearch);
+    localStorage.setItem('search', this.inputs);
+    
     return true;
   }
 

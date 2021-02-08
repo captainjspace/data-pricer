@@ -34,7 +34,7 @@ app = Flask(__name__)
 globals={
   'read-from-api-complete': False,
   'seconds_to_days' : 86400,
-  'seconds_to_month' : 60 * 60 * 24 * 30,
+  'seconds_to_month' : 60 * 60 * 730,
   'core_fee':40.0,
   'subscription_retention_fee':0.27,
   'snapshot_fee':0.27,
@@ -205,19 +205,20 @@ def lp_json_conf():
 
     app.logger.info('POSTED:{}'.format(request.data))
 
+    # function table
     measures = {
         'Datastore Multi': {'ctype': 'multi-region', 'discount': 'ds_discount_factor', 'funcname': ds_pricing, 'stype': 'ssd'},
         'Datastore Single': {'ctype': 'single-region', 'discount': 'ds_discount_factor', 'funcname': ds_pricing, 'stype': 'ssd'},
         'Bigtable Multi Replication': {'ctype': 'repl-multi', 'discount': 'bt_discount_factor', 'funcname': bt_pricing, 'stype': 'ssd'},
         'Bigtable Single Replication': {'ctype': 'repl-single', 'discount': 'bt_discount_factor', 'funcname': bt_pricing, 'stype': 'ssd'},
         'Bigtable Single': {'ctype': 'single', 'discount': 'bt_discount_factor', 'funcname': bt_pricing, 'stype': 'hdd'},
-        'Spanner Multi': {'ctype': 'multi', 'discount': 'bt_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
-        'Spanner Single': {'ctype': 'single', 'discount': 'bt_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
-        'Spanner Global': {'ctype': 'global', 'discount': 'bt_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'}
+        'Spanner Multi': {'ctype': 'multi', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
+        'Spanner Single': {'ctype': 'single', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
+        'Spanner Global': {'ctype': 'global', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'}
     }
     cfg = {
-        'reads': 30000,
-        'writes': 20000,
+        'reads': 33000,
+        'writes': 22000,
         'storage': 100,
         'scale': 0.0,
         'ioscale': 0.0,
@@ -236,19 +237,6 @@ def lp_json_conf():
         cfg.update(v)
         output[k]=v['funcname'](cfg)['data']
     return output    
-    
-    # return {
-    
-    #   'Datastore Multi' : ds_pricing(cfg)['data'],
-    #   'Datastore Single' : ds_pricing(cfg)['data'],
-    #   'Bigtable Multi Replication': bt_pricing(cfg)['data'],
-    #   'Bigtable Single Replication': bt_pricing(cfg)['data'],
-    #   'Bigtable Single': bt_pricing(cfg)['data'],
-    #   'Spanner Multi': spanner_pricing(cfg)['data'],
-    #   'Spanner Single': spanner_pricing(cfg)['data'],
-    #   'Spanner Global': spanner_pricing(cfg)['data']
-
-    # }
 
 @app.route("/pricing/lp/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def lp_json_params(reads=30000, writes=20000, storage=100, scale=0.0):
@@ -272,8 +260,6 @@ def lp_html():
     o2 = json2html.convert(bt_pricing()['data'])
     o3 = json2html.convert(spanner_pricing()['data'])
     gh =json2html.convert(globals)
-    #output = { 'globals' :globals , 'datastore': o1, 'bigtable': o2, 'spanner' :o3} 
-    #html = json2html.convert(output)
     return o1 + o2 + o3
 
 @app.route("/pricing/lp/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
@@ -316,6 +302,7 @@ def bt_pricing(inputs=None):
     stypes = ['ssd','hdd']
     if stype is not None and stype not in stypes: stypes=stypes[0]
 
+    #bigtable pricing config
     config = {
         'repl-multi': {
             'clusters': 4,
@@ -380,7 +367,7 @@ def bt_pricing(inputs=None):
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
     data['replicated_storage_cost'] = data['storage_cost'] * (data['clusters']  - 1 )          
     data['node_base_cost'] = cfg['node_base_cost']   #0.65 #per/hr
-    data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
+    data['node_cost'] = data['node_base_cost'] * data['nodes'] * 730
     data['total_cost_single_region'] = data['storage_cost']  + data['node_cost']
 
     # replication / network 
@@ -404,16 +391,18 @@ def bt_pricing(inputs=None):
 def calc_nodes(data,c):
     # need to buffer nodes to not run out of IO on spikes or storage
     app.logger.info(data['reads']  , c)
-    #data['storage_type'] = 'ssd' if c['storage_base_cost'][stype]
+
+    storage_buffer = 1.15  # config relocate add at least 15% storage overhead
 
     data['read_nodes_min']  = math.ceil(data['reads'] / c['reads_per_second']) 
     data['write_nodes_min'] = math.ceil(data['writes'] /  c['writes_per_second'])
     data['storage_nodes_min'] = math.ceil(data['storage'] / c['storage_per_node_(TB)'] )
+
     n={k: v for k, v in data.items() if 'nodes_min' in k}
     (mk,mv)=sorted(n.items(),key=lambda x: (x[1]),reverse=True)[0]
     data['node_driver']=mk
     # 30% capacity or reads/writes but only 10% capacity for storage
-    nf = 1.1 if 'storage' in mk else data['node_overhead_factor'] 
+    nf = storage_buffer if 'storage' in mk else data['node_overhead_factor'] 
     data['nodes'] = int(mv * nf) 
     data['node_driver']=mk.replace("_min","")
 
@@ -445,13 +434,16 @@ def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1, ctype='mu
     return spanner_pricing(params)
 
 def spanner_pricing(inputs):
-    # single-regions (3 zones)
-    #config = { 'r': 10000.0, 'w': 2000.0, 's': 2.0}
-    # multi-regions
+    
+    # config type
     ctype  = inputs['ctype']
     ctypes = ['single','multi','global']
     if ctype is not None and ctype not in ctypes: ctype='multi'
 
+    # storage type
+    stype  = 'ssd'  #fixed
+
+    # spanner price config
     config = {
         'global': {
             'clusters': 3,
@@ -488,22 +480,17 @@ def spanner_pricing(inputs):
         }
     }
 
+    #start loading spanner data
     data = {
-        'storage_type': 'ssd'
+        'storage_type': stype
     }
 
     data.update(config[ctype])
-
-    # data['type'] = config[ctype]['type']
-    # data['location'] = config[ctype]['location']
-    # data['storage_base_cost'] = config[ctype]['sc']
-
-    #inputs = get_input(reads,writes,storage,scale)
     data=scale_data(data,inputs)
     calc_nodes(data, config[ctype])
     
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
-    data['node_cost'] = data['node_base_cost'] * data['nodes'] * 24 * 30
+    data['node_cost'] = data['node_base_cost'] * data['nodes'] * 730
     data['total_cost'] =  data['storage_cost']  + data['node_cost']
     data['total_discounted_cost'] = data['total_cost'] * inputs['disc_factor']
 

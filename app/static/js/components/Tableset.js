@@ -74,7 +74,7 @@ class Tableset {
           <content>
             <div class="container">
               <div class="tables">
-                <div id="itemDisplay" onclick="app.tableset.copyToClipboard();">
+                <div id="itemDisplay">
                   ${gridHTML}
                 </div>
               </div>

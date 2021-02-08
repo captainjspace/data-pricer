@@ -97,9 +97,20 @@ html, body {
   }
 
   tr#Measure {
-    font: bold large serif
+    font: bold large serif;
   }
-
+  tr#Measure:hover::after {
+    content: "Click this row to copy table, paste into sheets" ;
+    position: absolute ;
+    /* top: 1.1em ; */
+    left: 1em ; 
+    /* min-width: 200px ; */
+    border: 1px #808080 solid ;
+    padding: 8px ;
+    color: black ;
+    background-color: #cfc ;
+    z-index: 1 ;
+  }
   div#total {
     width: 50%;
     padding: 10px 0px 5px 10px;
