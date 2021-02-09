@@ -36,6 +36,7 @@ class Tableset {
       let grid = [];
       grid.push(setkeys);
 
+      let dataRows = []
       this.cleanvalues.forEach(k => {
         let row = [];
         row.push(k);
@@ -47,6 +48,8 @@ class Tableset {
         })
         grid.push(row)
       });
+      
+      
       return grid;
     }
     properCase(s) {
@@ -60,6 +63,9 @@ class Tableset {
       window.getSelection().addRange(r);
       document.execCommand('copy');
       window.getSelection().removeAllRanges();
+      //f=window.open('https://docs.google.com/spreadsheets/u/0/create?usp=dot_new');
+      //f.execCommand('paste')
+
     }
 
     renderView() {
