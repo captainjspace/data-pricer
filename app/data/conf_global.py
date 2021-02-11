@@ -4,6 +4,7 @@
 # refactor -- overlapping with new datastore config.  deprecated mostly
 global_dict ={
   'read-from-api-complete': False,
+  'hours_per_month': 730,
   'seconds_to_days' : 86400,
   'seconds_to_month' : 60 * 60 * 730,
   'core_fee':40.0,

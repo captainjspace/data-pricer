@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: pricer
-          image: pricer
+          image: data-pricer
           imagePullPolicy: Never
           ports:
           - name: http

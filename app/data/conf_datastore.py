@@ -37,14 +37,11 @@ config = {
     }
 }
 
-
 def get():
     return config
 
-
 def main():
     print('{}'.format(config))
-
 
 if __name__ == "__main__":
     main()

@@ -16,6 +16,7 @@ class Inputs {
         this._ds_discount_factor = {}
         this._spanner_discount_factor = 0.7;
         this._ioscale = 0.0;
+        this._record_size = 1024.0;
       }
   
       get reads() {
@@ -64,27 +65,19 @@ class Inputs {
         //TODO: validate correct keyscd
         this._ds_discount_factor=ds_discount_factor
       }
-
-      // get ds_reads_discount_factor() {
-      //   return this._ds_discount_factor['reads'];
-      // }
-      // set ds_reads_discount_factor(ds_reads_discount_factor) {
-      //   this.this._ds_discount_factor['reads']=1-parseFloat(ds_reads_discount_factor) || 0.0
-      // }
-      // get ds_writes_discount_factor() {
-      //   return this._ds_discount_factor['writes'];
-      // }
-      // set ds_writes_discount_factor(ds_writes_discount_factor) {
-      //   this.this._ds_discount_factor['writes']=1-parseFloat(ds_writes_discount_factor) || 0.0
-      // }
-
-
       get spanner_discount_factor() {
         return this._spanner_discount_factor
       }
       set spanner_discount_factor(spanner_discount_factor) {
         this._spanner_discount_factor=1-parseFloat(spanner_discount_factor) || 1
       }
+      get record_size() {
+        return this._record_size;
+      }
+      set record_size(record_size) {
+        this._record_size=parseFloat(record_size) || 1024.0;
+      }
+
 
       get_exists(field) {
         var f = document.getElementById(field)
@@ -104,6 +97,8 @@ class Inputs {
         this.ds_discount_factor['writes'] = this.get_exists('ds_writes_discount_factor')
         this.ds_discount_factor['deletes'] = this.get_exists('ds_deletes_discount_factor')
         this.ds_discount_factor['storage'] = this.get_exists('ds_storage_discount_factor')
+
+        this.record_size = document.getElementById('record_size').value || 1024
       
       }
       
@@ -114,6 +109,7 @@ class Inputs {
         'storage': this.storage,
         'scale': this.scale,
         'ioscale': this.ioscale,
+        'record_size': this.record_size,
         'bt_discount_factor': this.bt_discount_factor,
         'ds_discount_factor': this.ds_discount_factor,
         'spanner_discount_factor': this.spanner_discount_factor
@@ -247,7 +243,7 @@ const mastHTML=`<div class="gclogo"><img id="gclogo" src="/static/img/cloud-logo
 
     <div class="flex-row">
 
-        <div class="form-field z3">
+        <div class="form-field z4">
             <div class="form-field__control">
                 <input type="text" id="reads" class="form-field__input" placeholder="30000" autofocus />
                 <label for="reads" class="form-field__label">Reads per Second</label>
@@ -255,7 +251,7 @@ const mastHTML=`<div class="gclogo"><img id="gclogo" src="/static/img/cloud-logo
             </div>
         </div>
 
-        <div class="form-field z3">
+        <div class="form-field z4">
             <div class="form-field__control">
                 <input type="text" id="writes" class="form-field__input" placeholder="20000" />
                 <label for="writes" class="form-field__label">Writes per Second</label>
@@ -263,13 +259,21 @@ const mastHTML=`<div class="gclogo"><img id="gclogo" src="/static/img/cloud-logo
             </div>
         </div>
 
-        <div class="form-field z3">
+        <div class="form-field z4">
             <div class="form-field__control">
                 <input type="text" id="storage" class="form-field__input" placeholder="100" />
                 <label for="storage" class="form-field__label">Storage (TB)</label>
                 <div class="form-field__bar"></div>
             </div>
         </div>
+
+        <div class="form-field z4">
+          <div class="form-field__control">
+              <input type="text" id="record_size" class="form-field__input" placeholder="1024" />
+              <label for="record_size" class="form-field__label">Average Record Size (KB)</label>
+              <div class="form-field__bar"></div>
+          </div>
+    </div>
 
     </div>
 

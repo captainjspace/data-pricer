@@ -3,26 +3,23 @@ import math, time
 from flask import Flask, url_for, jsonify, render_template, request, json
 from json2html import *
 
-# app libraries
+# local libraries
 import log_config
 from data import conf_bigtable, conf_spanner, conf_datastore, app_defaults, conf_global 
 from formatters import formats
 
+# aoplication fields
 globals = conf_global.get()
 version='v0.0.8'+'{}'.format(time.time())
-
-
 app = Flask(__name__)
 
-@app.route("/pricing/ds_pricing/")
-def __def_ds_pricing():
-    return ds_pricing(app_defaults.get())
 
+# worker functions find class homes ...
 
 #Data method
 # make this gen monthlies in to an annual
-def scale_data(data,inputs,):
-    app.logger.info('{}'.format(inputs))
+def scale_data(data,inputs):
+    #app.logger.info('{}'.format(inputs))
     #data['scaler'] = 1 + inputs['scale']
     data['reads'] = math.ceil(inputs['reads'] * (1 + inputs['ioscale']) )
     data['writes'] = math.ceil(inputs['writes'] * (1+ inputs['ioscale']) )
@@ -33,6 +30,11 @@ def scale_data(data,inputs,):
 #Formatter
 def format_data(data):
     return formats.format_data(data)
+
+
+@app.route("/pricing/ds_pricing/")
+def __def_ds_pricing():
+    return ds_pricing(app_defaults.get())
 
 
 ## Route original param route -- DEPRECATED
@@ -56,21 +58,17 @@ def ds_pricing(inputs):
 
     # refactor
     ctype = inputs['ctype']
-    ctypes = ['single-region', 'multi-region']
-    if ctype is not None and ctype not in ctypes: ctype=ctypes[1]
+    ctypes = conf_datastore.get().keys()  # ['single-region', 'multi-region']
+    if ctype is not None and ctype not in ctypes: ctype=ctypes[1] # issue warning?
 
     # bs price config 
     cfg = conf_datastore.get()[ctype]
-
-    # https://cloud.google.com/datastore/pricing
-
+   
     data={}
-
     app.logger.debug('DS PRICING: CFG:{}'.format(json.dumps(cfg, indent=2)))
     app.logger.debug('DS INPUTS: CFG:{}'.format(json.dumps(inputs['disc_factor'], indent=2)))
     
     data=scale_data(data,inputs)
-
     # push config into data
     data.update(cfg)
 
@@ -83,55 +81,71 @@ def ds_pricing(inputs):
     data['discounted_storage_cost'] = data['storage_cost'] * inputs['disc_factor']['storage']
 
 
-    #adjust freebies
+    #adjust freebies, using 30 days ...
     data['monthly_reads'] = data['reads'] * globals['seconds_to_month'] - (30 * cfg['platform']['free_reads'])
     data['monthly_writes'] = data['writes'] * globals['seconds_to_month'] - (30 * cfg['platform']['free_writes'])
     data['monthly_deletes'] = max(0,data['deletes'] * globals['seconds_to_month'] - (30 * cfg['platform']['free_deletes']))
 
 
+    #READS
     # default
     data['read_cost'] = data['monthly_reads'] / data['io_unit'] * data['read_base_cost']
 
-    #adjust tiered discount
+    #adjust tiered discount -- almost always over 50K per day.
     if data['monthly_reads'] > data['tier1_cap'] * data['io_unit']:
         data['read_cost_tier1'] = data['tier1_cap'] * data['read_base_cost']
         data['read_cost_tier2'] = ( data['monthly_reads'] / data['io_unit'] - data['tier1_cap'] ) * data['read_base_cost']
         data['read_cost'] = data['read_cost_tier1'] + data['read_cost_tier2']
     
+    # if discount...(default is 1) 
     data['discounted_read_cost'] = data['read_cost'] * inputs['disc_factor']['reads']
 
+    # WRITES
     data['write_cost'] = data['monthly_writes']  / data['io_unit'] * data['write_base_cost']
     data['discounted_write_cost'] = data['write_cost'] * inputs['disc_factor']['writes']
-
+ 
+    # DELETES
     data['delete_cost'] = data['monthly_deletes']  / data['io_unit'] * data['delete_base_cost']  ### fix me
     data['discounted_delete_cost'] = data['delete_cost'] * inputs['disc_factor']['deletes']
 
+    # TOTAL IO
     data['io_cost'] = data['read_cost'] + data['write_cost'] + data['delete_cost']    
     data['discounted_io_cost'] = data['discounted_read_cost'] + data['discounted_write_cost'] + data['discounted_delete_cost']   
 
-
+    # TOTAL COSTS
     data['total_cost'] = data['io_cost'] + data['storage_cost']
     data['total_discounted_cost'] = data['discounted_io_cost'] + data['discounted_storage_cost']
 
-
-    #data['total_discounted_cost']= data['total_cost'] * inputs['disc_factor']
-    
     format_data(data)
-    
-    
-    output= {'inputs': inputs, 'globals': globals,'data': data}
+        
+    output= {'inputs': inputs, 'globals': globals,'data': data, 'config': cfg}
     return output    
+
+
+#TODO Abstract out request.data from below- so it functions off a dict
+# add caller
+# then add loop construct to build master data state of 12 monhts 3 years -- 
+# integrated front end
 
 
 @app.route("/pricing/lp/json/conf", methods=['POST'])
 def lp_json_conf():
 
+    # default input
     cfg = app_defaults.get()
     app.logger.info('App Defaults: {}'.format(cfg))
 
+    # receive json input
     input_json = request.data
     app.logger.info('Posted Input: {}'.format(input_json))
 
+    app.logger.debug(input_json, type(input_json))
+    if input_json:
+      json_input = json.loads(input_json)
+      app.logger.info('Form Input:\n{}'.format(json.dumps(json_input, indent=2)))
+      cfg.update(json_input)
+
+    
     # function driver table
     measures = {
         'Datastore Multi': {'ctype': 'multi-region', 'discount': 'ds_discount_factor', 'funcname': ds_pricing, 'stype': 'ssd'},
@@ -146,18 +160,15 @@ def lp_json_conf():
     }
     #app.logger.info('Executions: {}'.format(measures))
 
-    app.logger.debug(input_json, type(input_json))
-    if input_json:
-      json_input = json.loads(input_json)
-      cfg.update(json_input)
+    
 
     output={}
-
     for k,v in measures.items():
-        # refactor -- but selecting which discount use, currently flat,needs to 1:set
+        # refactor -- but selecting which discount use, currently flat,needs to 1:set -- 
+        # (done but needs to shift left)
+        # function name effectively carries the discount var key ... 
         cfg['disc_factor']=cfg[v['discount']] #conf key
         cfg.update(v) #merge
-
         # set output key to deference to function, pass in merged config
         output[k]=v['funcname'](cfg)['data']
 
@@ -178,8 +189,7 @@ def lp_json_params(reads=30000, writes=20000, storage=100, scale=0.0):
       'Spanner Single': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'single')['data'],
       'Spanner Global': spanner_pricing(cfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'],'global')['data']
     }
-    #output = { 'Datastore': o1, 'Bigtable': o2, 'Spanner' :o3} 
-    #return output
+
 
 #refactor - formatter
 @app.route("/pricing/lp/html")
@@ -193,7 +203,6 @@ def lp_pricing(reads=30000, writes=20000, storage=100, scale=0.0):
     o2 = json2html.convert(bt_pricing(rcfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'])
     o3 = json2html.convert(spanner_pricing(rcfg['reads'],cfg['writes'],cfg['storage'],cfg['scale'])['data'])
     return o1 + o2 + o3
-    #gh =json2html.convert(globals)
 
 #@test
 @app.route("/pricing/bt")
@@ -223,39 +232,39 @@ def bt_pricing(inputs=None):
 
     ctype = inputs['ctype']
     stype = inputs['stype']
-    #valid
-    ctypes = ['single', 'repl-single', 'repl-multi' ]
-    if ctype is not None and ctype not in ctypes: ctype=ctypes[2]
-    stypes = ['ssd','hdd']
+    # validate 
+    ctypes = conf_bigtable.get().keys()  # ['single', 'repl-single', 'repl-multi' ]
+    if ctype is not None and ctype not in ctypes: ctype=ctypes[0]
+    # questionable
+    stypes = conf_bigtable.get_base()['storage_base_cost'].keys()
     if stype is not None and stype not in stypes: stype=stypes[0]
 
-    #config = conf_bigtable.get()
     cfg = conf_bigtable.get()[ctype] #config[ctype]
 
    
-    app.logger.info("config: {}, storage: {}".format(ctype,stype))
+    app.logger.debug("config: {}, storage: {}".format(ctype,stype))
     
     data={}
-    
     data.update(cfg)
 
-    # storage type
+    #bt needs storage type
     data['storage_type']=stype
     data['storage_base_cost'] = cfg['storage_base_cost'][stype]    
 
-
     data=scale_data(data,inputs)    
-    calc_nodes(data,cfg)
+
+    calc_node_capacity(data,cfg)
 
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
     data['replicated_storage_cost'] = data['storage_cost'] * (data['clusters']  - 1 )          
     data['node_base_cost'] = cfg['node_base_cost']   #0.65 #per/hr
-    data['node_cost'] = data['node_base_cost'] * data['nodes'] * 730
+    data['node_cost'] = data['node_base_cost'] * data['nodes'] * globals['hours_per_month']
     data['total_cost_single_region'] = data['storage_cost']  + data['node_cost']
 
     # replication / network 
     # need dual regional clusters 
-    data['replicated_data_size'] = math.ceil(data['monthly_writes'] * cfg['rec_size'] / 1024 / 1024 * cfg['rec_pct_chg']) #GBs
+    data['record_size'] = inputs['record_size'] or cfg['record_size'] 
+    data['replicated_data_size'] = math.ceil(data['monthly_writes'] * data['record_size'] / 1024 / 1024 * cfg['rec_pct_chg']) #GBs
     #app.logger.info('replicated data size %.2f', data['replicated_data_size']/1024.0)
     i = 1 if data['replicated_data_size']/1024.0 < 10 else 2 
     data['replication_base_cost'] = cfg['replication_base_cost'][i]
@@ -272,12 +281,14 @@ def bt_pricing(inputs=None):
 
 # Pricing common calc by ndoes
 
-#refactor? probably need real classes...
-def calc_nodes(data,cfg):
-    # need to buffer nodes to not run out of IO on spikes or storage
-    app.logger.info(data['reads']  , cfg)
+#refactor? 
+def calc_node_capacity(data,cfg):
 
-    storage_buffer = 1.15  # config relocate add at least 15% storage overhead
+    # need to buffer nodes to not run out of IO on spikes or storage
+    app.logger.debug('data:\n{}'.format(json.dumps(data, indent=2)))
+    app.logger.debug('cfg:\n{}'.format(json.dumps(cfg, indent=2)))
+
+    storage_buffer = data['storage_overhead_factor']  # config relocate add at least 15% storage overhead
 
     data['read_nodes_min']  = math.ceil(data['reads'] / cfg['reads_per_second']) 
     data['write_nodes_min'] = math.ceil(data['writes'] /  cfg['writes_per_second'])
@@ -322,32 +333,27 @@ def spanner_pricing(inputs):
     
     # config type
     ctype  = inputs['ctype']
-    ctypes = ['single','multi','global']
-    if ctype is not None and ctype not in ctypes: ctype='multi'
-
-    # storage type
-    stype  = 'ssd'  #fixed
+    ctypes = conf_spanner.get().keys()   #['single','multi','global']
+    if ctype is not None and ctype not in ctypes: ctype=ctype[1]
 
     # spanner price config
     config = conf_spanner.get()
    
     #start loading spanner data
-    data = {
-        'storage_type': stype
-    }
+    data = {}
 
     data.update(config[ctype])
     data=scale_data(data,inputs)
-    calc_nodes(data, config[ctype])
+    calc_node_capacity(data, config[ctype])
     
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
-    data['node_cost'] = data['node_base_cost'] * data['nodes'] * 730
+    data['node_cost'] = data['node_base_cost'] * data['nodes'] * globals['hours_per_month']
     data['total_cost'] =  data['storage_cost']  + data['node_cost']
     data['total_discounted_cost'] = data['total_cost'] * inputs['disc_factor']
 
     format_data(data)
 
-    output= {'globals':globals,'data': data, 'config': config}
+    output= {'globals':globals,'data': data, 'config': config, 'inputs': inputs}
     return output
 
 @app.route('/app/')
