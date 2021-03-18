@@ -59,7 +59,8 @@ def ds_pricing(inputs):
     # refactor
     ctype = inputs['ctype']
     ctypes = conf_datastore.get().keys()  # ['single-region', 'multi-region']
-    if ctype is not None and ctype not in ctypes: ctype=ctypes[1] # issue warning?
+    # if not provided or if invalid, select default
+    if ctype is not None and ctype not in ctypes: ctype=ctypes[1] # issue warning? / default to multi
 
     # bs price config 
     cfg = conf_datastore.get()[ctype]
@@ -269,7 +270,9 @@ def bt_pricing(inputs=None):
     i = 1 if data['replicated_data_size']/1024.0 < 10 else 2 
     data['replication_base_cost'] = cfg['replication_base_cost'][i]
 
-    data['replication_network_cost'] = data['replicated_data_size']  * data['replication_base_cost']
+    data['replication_network_cost'] = 0
+    if cfg['replication'] is True:
+       data['replication_network_cost'] = data['replicated_data_size']  * data['replication_base_cost'] 
 
     # cluster+storage x2 + replicated changes
     data['total_cost'] = data['total_cost_single_region'] * data['clusters'] + data['replication_network_cost']
@@ -290,17 +293,25 @@ def calc_node_capacity(data,cfg):
 
     storage_buffer = data['storage_overhead_factor']  # config relocate add at least 15% storage overhead
 
+
+    # this is the bare minimum calc
     data['read_nodes_min']  = math.ceil(data['reads'] / cfg['reads_per_second']) 
     data['write_nodes_min'] = math.ceil(data['writes'] /  cfg['writes_per_second'])
     data['storage_nodes_min'] = math.ceil(data['storage'] / cfg['storage_per_node_(TB)'] )
 
-    n={k: v for k, v in data.items() if 'nodes_min' in k}
+    data['read_nodes_req']  = math.ceil(data['reads'] * cfg['node_overhead_factor'] / cfg['reads_per_second']) 
+    data['write_nodes_req'] = math.ceil(data['writes'] * cfg['node_overhead_factor']  /  cfg['writes_per_second'])
+    data['storage_nodes_req'] = math.ceil(data['storage'] * cfg['storage_overhead_factor']  / cfg['storage_per_node_(TB)'] )
+
+
+    # scaling nodes
+    n={k: v for k, v in data.items() if 'nodes_req' in k}
+    app.logger.debug('nodes:\n{}'.format(json.dumps(n, indent=2)))
     (mk,mv)=sorted(n.items(),key=lambda x: (x[1]),reverse=True)[0]
-    data['node_driver']=mk
-    # 30% capacity or reads/writes but only 10% capacity for storage
+    # use storage buffer overhead by default else nodes...
     nf = storage_buffer if 'storage' in mk else data['node_overhead_factor'] 
-    data['nodes'] = int(mv * nf) 
-    data['node_driver']=mk.replace("_min","")
+    data['nodes'] = int(mv) #int(mv * nf) 
+    data['node_driver']=mk.replace("_req","").replace("_"," ").title()
 
     data['nodes_read_capacity'] = int(data['nodes'] * cfg['reads_per_second'])
     data['nodes_write_capacity'] = int(data['nodes'] * cfg['writes_per_second'])

@@ -1,4 +1,5 @@
 from math import floor
+
 magnitudeDict={0:'', 1:'K', 2:'M', 3:'B', 4:'T'}
 
 def simplify(num):
@@ -8,6 +9,10 @@ def simplify(num):
         magnitude+=1
         num=num/1000.0
     return(f'{floor(num*100.0)/100.0}{magnitudeDict[magnitude]}')
+
+
+
+
 
 def format_data(data):
     """
@@ -23,6 +28,9 @@ def format_data(data):
     
     #money_fields  = []
     cost     = { key:'${:,.2f}'.format(value) for key, value in data.items() if 'cost' in key }
+    #for key in cost: del data[key]
+  
+
 
     # acapacity fields -- clean this - fix data structure 
     capacity = { key:'{} {}'.format(simplify(value), numbers_units[key]) for key, value in data.items() if key in numbers_units.keys()}
@@ -30,6 +38,7 @@ def format_data(data):
     # general number fields
     numbers  = { key:'{}'.format(simplify(value)) for key, value in data.items() if key in number_fields }
     
+    # data.update(cost)
     data.update(cost)
     data.update(capacity)
     data.update(numbers)

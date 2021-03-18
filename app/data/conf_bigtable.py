@@ -10,7 +10,8 @@ base = {
     'node_base_cost': 0.65,
     'location': 'us-central1,europe-west1',
     'node_overhead_factor': 1.3,
-    'storage_overhead_factor': 1.15
+    'storage_overhead_factor': 1.15,
+    'replication' : True
 }
 
 # overrides per cluster type
@@ -27,6 +28,7 @@ config = {
         'clusters': 1,
         'type': 'Single Region Eventually Consistent',
         'location': 'us-central1',
+        'replication' : False
     }
 }
 

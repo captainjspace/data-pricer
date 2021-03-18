@@ -25,7 +25,7 @@ config = {
         'type': 'Multi Region Transactional',
         'location': 'nam3',
         'storage_base_cost': 0.5,
-        'node_overhead_factor': 2.0
+        'node_overhead_factor': 1.7
     },
     'single': {
         'clusters': 1,
