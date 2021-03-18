@@ -10,7 +10,7 @@ from formatters import formats
 
 # aoplication fields
 globals = conf_global.get()
-version='v0.0.10'+'{}'.format(time.time())
+version='v0.0.11'+'{}'.format(time.time())
 app = Flask(__name__)
 
 
