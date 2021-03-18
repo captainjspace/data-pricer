@@ -13,7 +13,7 @@ config = {
         'writes_per_second': 1000.0,
         'node_base_cost': 9.0,
         'type': 'Global Transactional',
-        'location': 'nam3',
+        'location': 'nam-eur-asia1',
         'storage_base_cost': 0.9,
         'node_overhead_factor': 2.0
     },
