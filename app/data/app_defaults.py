@@ -14,6 +14,7 @@ default_inputs = {
     'bt_discount_factor': 1,
     'ds_discount_factor': {'reads':1, 'writes':1, 'deletes':1, 'storage':1},
     'spanner_discount_factor': 1,
+    'sql_discount_factor': 1,
     'storage_type': 'ssd',
     'months':12,
     'years': 3

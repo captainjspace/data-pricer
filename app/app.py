@@ -5,7 +5,7 @@ from json2html import *
 
 # local libraries
 import log_config
-from data import conf_bigtable, conf_spanner, conf_datastore, app_defaults, conf_global 
+from data import conf_bigtable, conf_spanner, conf_datastore, app_defaults, conf_global, conf_sql
 from formatters import formats
 
 # aoplication fields
@@ -157,7 +157,8 @@ def lp_json_conf():
         'Bigtable Single HDD': {'ctype': 'single', 'discount': 'bt_discount_factor', 'funcname': bt_pricing, 'stype': 'hdd'},
         'Spanner Multi': {'ctype': 'multi', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
         'Spanner Single': {'ctype': 'single', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
-        'Spanner Global': {'ctype': 'global', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'}
+        'Spanner Global': {'ctype': 'global', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
+        'Cloud SQL': {'ctype': 'single', 'discount': 'sql_discount_factor', 'funcname': sql_pricing, 'stype': 'ssd'}
     }
     #app.logger.info('Executions: {}'.format(measures))
 
@@ -165,6 +166,7 @@ def lp_json_conf():
 
     output={}
     for k,v in measures.items():
+        app.logger.debug('calc on :\n{}'.format(json.dumps(k, indent=2)))
         # refactor -- but selecting which discount use, currently flat,needs to 1:set -- 
         # (done but needs to shift left)
         # function name effectively carries the discount var key ... 
@@ -172,6 +174,10 @@ def lp_json_conf():
         cfg.update(v) #merge
         # set output key to deference to function, pass in merged config
         output[k]=v['funcname'](cfg)['data']
+
+        # this removes cloud sql if passed capacity 
+        if any(x in ['EXCEEDS_TPS_CAPACITY','STORAGE_EXCEEDED'] for x in output[k]): 
+            del output[k]
 
     return output    
 
@@ -366,6 +372,63 @@ def spanner_pricing(inputs):
 
     output= {'globals':globals,'data': data, 'config': config, 'inputs': inputs}
     return output
+
+def sql_pricing(inputs):
+    # config type
+    ctype  = inputs['ctype']
+    stype  = inputs['stype']
+    ctypes = conf_sql.get().keys()   #['single','multi','global']
+    if ctype is not None and ctype not in ctypes: ctype=ctype[:1]
+
+    cfg = conf_sql.get()[ctype]
+    #storage type
+    stypes = cfg['storage_base_cost'].keys()
+    if stype is not None and stype not in stypes: stype=stypes[0]
+
+   
+    
+    app.logger.debug('sql-conf:\n{}'.format(json.dumps(cfg, indent=2)))
+    #start loading spanner data
+    data = {}
+
+    data.update(cfg)
+    data=scale_data(data,inputs)
+    data['storage_type']=stype
+    data['storage_base_cost'] = cfg['storage_base_cost'][stype]  
+    data['backup_base_cost'] = cfg['storage_base_cost']['backup']
+
+    ptype = 'cud3'
+    data['vCPU_base_cost'] = data['vCPU_base_cost'][ptype]
+    data['memory_base_cost'] = data['memory_base_cost'][ptype]
+
+    if data['storage']>cfg['instance']['max_storage']:
+        data['storage']=30
+        data['STORAGE_EXCEEDED']=True
+
+    data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
+    data['backup_cost']  = data['backup_base_cost'] * data['storage'] * 1024 # TB to GB
+
+    #set first
+    data['transactions_per_second'] = data['reads'] + data['writes']
+    ( data['vCPUs'], data['max_tps'] )     = ( [ c for c in data['tps_factors'] if c[1] >  data['transactions_per_second']] [:1] or [data['tps_factors'][-1]] )[0]
+    data['vCPU_cost']  = data['vCPUs'] * data['vCPU_base_cost'] * 730
+    if data['transactions_per_second']>data['max_tps']:
+        data['EXCEEDS_TPS_CAPACITY']=True
+
+    data['memory']      = data['vCPUs'] * 4 
+    data['memory_cost'] = data['memory'] * data['memory_base_cost'] * 730
+    data['total_cost'] =  data['storage_cost']  +  data['vCPU_cost'] + data['memory_cost'] + data['backup_cost'] 
+    data['total_discounted_cost'] = data['total_cost'] * inputs['disc_factor']
+    app.logger.debug('sql-data:\n{}'.format(json.dumps(data, indent=2)))
+    
+
+    for i in ['egress_base_cost','ip_base_cost','license','tps_factors','instance','max_tps']:
+        del data[i]
+
+    format_data(data)
+    output= {'globals':globals,'data': data, 'config': cfg, 'inputs': inputs}
+    return output
+
 
 @app.route('/app/')
 def webapp():
