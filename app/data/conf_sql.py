@@ -4,7 +4,9 @@
 config = {
     'single': {
         'location': 'us-central1',
-        'type': 'Single Region Transactional',
+        'type': 'Single Region (HA) Transactional',
+        'nodes': '2 (instances)',
+        'rdbms': 'postgresql',
         'storage_type': 'ssd',
         'vCPU_base_cost': {'od': 0.0413, 'cud1': 0.03098, 'cud3': 0.01982},
         'memory_base_cost': {'od': 0.0070, 'cud1': 0.00525, 'cud3': 0.00336},

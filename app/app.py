@@ -10,7 +10,7 @@ from formatters import formats
 
 # aoplication fields
 globals = conf_global.get()
-version='v0.0.11'+'{}'.format(time.time())
+version='v0.1.3'+'{}'.format(time.time())
 app = Flask(__name__)
 
 
@@ -158,7 +158,7 @@ def lp_json_conf():
         'Spanner Multi': {'ctype': 'multi', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
         'Spanner Single': {'ctype': 'single', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
         'Spanner Global': {'ctype': 'global', 'discount': 'spanner_discount_factor', 'funcname': spanner_pricing, 'stype': 'ssd'},
-        'Cloud SQL': {'ctype': 'single', 'discount': 'sql_discount_factor', 'funcname': sql_pricing, 'stype': 'ssd'}
+        'Cloud SQL Postgresql': {'ctype': 'single', 'discount': 'sql_discount_factor', 'funcname': sql_pricing, 'stype': 'ssd'}
     }
     #app.logger.info('Executions: {}'.format(measures))
 
@@ -417,7 +417,8 @@ def sql_pricing(inputs):
 
     data['memory']      = data['vCPUs'] * 4 
     data['memory_cost'] = data['memory'] * data['memory_base_cost'] * 730
-    data['total_cost'] =  data['storage_cost']  +  data['vCPU_cost'] + data['memory_cost'] + data['backup_cost'] 
+    data['total_cost_single_region'] = data['storage_cost'] + data['vCPU_cost'] + data['memory_cost'] + data['backup_cost'] 
+    data['total_cost'] =  (data['storage_cost'] + data['vCPU_cost'] + data['memory_cost'] ) * 2  +  data['backup_cost'] 
     data['total_discounted_cost'] = data['total_cost'] * inputs['disc_factor']
     app.logger.debug('sql-data:\n{}'.format(json.dumps(data, indent=2)))
     
