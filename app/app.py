@@ -8,11 +8,11 @@ import log_config
 from data import conf_bigtable, conf_spanner, conf_datastore, app_defaults, conf_global, conf_sql
 from formatters import formats
 
-# aoplication fields
+# application fields
+# move to object - autoincrement
 globals = conf_global.get()
 version='v0.1.3'+'{}'.format(time.time())
 app = Flask(__name__)
-
 
 # worker functions find class homes ...
 
@@ -170,19 +170,20 @@ def lp_json_conf():
         # refactor -- but selecting which discount use, currently flat,needs to 1:set -- 
         # (done but needs to shift left)
         # function name effectively carries the discount var key ... 
-        cfg['disc_factor']=cfg[v['discount']] #conf key
+        cfg['disc_factor']=cfg[v['discount']] 
         cfg.update(v) #merge
         # set output key to deference to function, pass in merged config
         output[k]=v['funcname'](cfg)['data']
 
-        # this removes cloud sql if passed capacity 
+        # removal flags this removes cloud sql if passed capacity (i.e. 100TB storage in PostGres)
         if any(x in ['EXCEEDS_TPS_CAPACITY','STORAGE_EXCEEDED'] for x in output[k]): 
             del output[k]
 
     return output    
 
 
-#refactor
+#refactor 
+
 @app.route("/pricing/lp/json/<int:reads>/<int:writes>/<int:storage>/<float:scale>")
 def lp_json_params(reads=30000, writes=20000, storage=100, scale=0.0):
     return {
@@ -292,6 +293,14 @@ def bt_pricing(inputs=None):
 
 #refactor? 
 def calc_node_capacity(data,cfg):
+    """
+    Calc node capacity will determine the number of nodes required for reads,
+    writes and storage for node based systems
+    Then apply form the config any buffers required for that system
+    Apply any require growth factor (pre / post TBD) <-- confirm 
+    Select the largest node requirement as the node minimum
+    defaults to storage as that that is the most usual case
+    """
 
     # need to buffer nodes to not run out of IO on spikes or storage
     app.logger.debug('data:\n{}'.format(json.dumps(data, indent=2)))
