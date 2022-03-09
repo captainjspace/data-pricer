@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 
 base = {
-    'storage_per_node_(TB)': 2.0,
-    'storage_overhead_factor': 1.15,
+    'storage_per_node_(TB)': {'ssd':2},
+    'storage_overhead_factor': 1/0.8,
     'storage_type': 'ssd'
 }
 

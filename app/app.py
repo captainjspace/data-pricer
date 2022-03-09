@@ -258,6 +258,7 @@ def bt_pricing(inputs=None):
     #bt needs storage type
     data['storage_type']=stype
     data['storage_base_cost'] = cfg['storage_base_cost'][stype]    
+    data['storage_per_node_(TB)'] = cfg['storage_per_node_(TB)'][stype]
 
     data=scale_data(data,inputs)    
 
@@ -307,16 +308,16 @@ def calc_node_capacity(data,cfg):
     app.logger.debug('cfg:\n{}'.format(json.dumps(cfg, indent=2)))
 
     storage_buffer = data['storage_overhead_factor']  # config relocate add at least 15% storage overhead
-
+     
 
     # this is the bare minimum calc
     data['read_nodes_min']  = math.ceil(data['reads'] / cfg['reads_per_second']) 
     data['write_nodes_min'] = math.ceil(data['writes'] /  cfg['writes_per_second'])
-    data['storage_nodes_min'] = math.ceil(data['storage'] / cfg['storage_per_node_(TB)'] )
+    data['storage_nodes_min'] = math.ceil(data['storage'] / cfg['storage_per_node_(TB)'][data['storage_type']] )
 
     data['read_nodes_req']  = math.ceil(data['reads'] * cfg['node_overhead_factor'] / cfg['reads_per_second']) 
     data['write_nodes_req'] = math.ceil(data['writes'] * cfg['node_overhead_factor']  /  cfg['writes_per_second'])
-    data['storage_nodes_req'] = math.ceil(data['storage'] * cfg['storage_overhead_factor']  / cfg['storage_per_node_(TB)'] )
+    data['storage_nodes_req'] = math.ceil(data['storage'] * cfg['storage_overhead_factor']  / cfg['storage_per_node_(TB)'][data['storage_type']] )
 
 
     # scaling nodes
@@ -330,7 +331,7 @@ def calc_node_capacity(data,cfg):
 
     data['nodes_read_capacity'] = int(data['nodes'] * cfg['reads_per_second'])
     data['nodes_write_capacity'] = int(data['nodes'] * cfg['writes_per_second'])
-    data['nodes_storage_capacity'] = int(data['nodes'] * cfg['storage_per_node_(TB)'])
+    data['nodes_storage_capacity'] = int(data['nodes'] * cfg['storage_per_node_(TB)'][data['storage_type']])
 
     data['monthly_reads'] = data['reads'] * globals['seconds_to_month']
     data['monthly_writes'] = data['writes'] * globals['seconds_to_month']
@@ -358,6 +359,7 @@ def spanner_pricing(reads=30000, writes=20000, storage=100, scale=0.1, ctype='mu
 def spanner_pricing(inputs):
     
     # config type
+    stype='ssd'
     ctype  = inputs['ctype']
     ctypes = conf_spanner.get().keys()   #['single','multi','global']
     if ctype is not None and ctype not in ctypes: ctype=ctype[1]
@@ -371,7 +373,8 @@ def spanner_pricing(inputs):
     data.update(config[ctype])
     data=scale_data(data,inputs)
     calc_node_capacity(data, config[ctype])
-    
+
+    data['storage_per_node_(TB)'] = data['storage_per_node_(TB)']['ssd']
     data['storage_cost'] = data['storage_base_cost'] * data['storage'] * 1024 # TB to GB
     data['node_cost'] = data['node_base_cost'] * data['nodes'] * globals['hours_per_month']
     data['total_cost'] =  data['storage_cost']  + data['node_cost']

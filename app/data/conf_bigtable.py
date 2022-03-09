@@ -2,7 +2,7 @@
 base = {
     'reads_per_second': 10000.0,
     'writes_per_second': 10000.0,
-    'storage_per_node_(TB)': 2.5,
+    'storage_per_node_(TB)': {'ssd':5,'hdd':16},
     'storage_base_cost': {'ssd': 0.17, 'hdd': 0.026},
     'replication_base_cost': [0.12, 0.11, 0.08],
     'record_size': 1024,  # record size in kb
@@ -10,7 +10,7 @@ base = {
     'node_base_cost': 0.65,
     'location': 'us-central1,europe-west1',
     'node_overhead_factor': 1.3,
-    'storage_overhead_factor': 1.15,
+    'storage_overhead_factor': 1/0.7,
     'replication' : True
 }
 
